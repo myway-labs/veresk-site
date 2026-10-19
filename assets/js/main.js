@@ -468,10 +468,9 @@ const guarantee = once
     let toTopQueued = false;
     // Базовый отступ снизу из CSS (1.5rem) — к нему возвращаемся вне подвала
     const toTopInset = parseFloat(getComputedStyle(toTopBtn).bottom) || 24;
-    // Блок контента футера — для проверки, что кнопка стоит над контентом
+    // Ограничитель: ≤768px футер в столбике, кнопка над нижней строкой
+    const toTopLimitMQ = window.matchMedia('(max-width: 768px)');
     const footerBlock = document.querySelector('.footer-grid');
-    // Во что упирается кнопка нижним краем в самом низу: низ «Политика
-    // конфиденциальности» (последняя ссылка колонки документов футера)
     const footerRestEdge = document.querySelector('.footer-docs .footer-link:last-child');
     let toTopLastBottom = null;
 
@@ -482,11 +481,9 @@ const guarantee = once
       const heroRemaining = heroBottom - window.scrollY;
       toTopBtn.classList.toggle('is-visible', heroRemaining <= window.innerHeight * 0.15);
 
-      // Поднимаем кнопку так, чтобы её низ встал вровень с низом «Политика
-      // конфиденциальности». Только если кнопка над контентом по горизонтали:
-      // вынесенная вправо (в поле) она контент и так не перекрывает
       let bottom = toTopInset;
-      if (footerBlock && footerRestEdge) {
+      // Ограничитель: ≤768px кнопка поднимается над нижней строкой футера
+      if (toTopLimitMQ.matches && footerBlock && footerRestEdge) {
         const blockRect = footerBlock.getBoundingClientRect();
         const btnRect = toTopBtn.getBoundingClientRect();
         if (btnRect.right > blockRect.left && btnRect.left < blockRect.right) {

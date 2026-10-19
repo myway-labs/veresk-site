@@ -468,8 +468,8 @@ const guarantee = once
     let toTopQueued = false;
     // Базовый отступ снизу из CSS (1.5rem) — к нему возвращаемся вне подвала
     const toTopInset = parseFloat(getComputedStyle(toTopBtn).bottom) || 24;
-    // Ограничитель: ≤768px футер в столбике, кнопка над нижней строкой
-    const toTopLimitMQ = window.matchMedia('(max-width: 768px)');
+    // Ограничитель: 601–768px футер в столбике, но нижняя строка ещё в ряд
+    const toTopLimitMQ = window.matchMedia('(min-width: 601px) and (max-width: 768px)');
     const footerBlock = document.querySelector('.footer-grid');
     const footerRestEdge = document.querySelector('.footer-docs .footer-link:last-child');
     let toTopLastBottom = null;
@@ -482,7 +482,7 @@ const guarantee = once
       toTopBtn.classList.toggle('is-visible', heroRemaining <= window.innerHeight * 0.15);
 
       let bottom = toTopInset;
-      // Ограничитель: ≤768px кнопка поднимается над нижней строкой футера
+      // Ограничитель: 601–768px кнопка поднимается над нижней строкой футера
       if (toTopLimitMQ.matches && footerBlock && footerRestEdge) {
         const blockRect = footerBlock.getBoundingClientRect();
         const btnRect = toTopBtn.getBoundingClientRect();

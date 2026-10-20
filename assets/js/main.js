@@ -536,15 +536,32 @@ const guarantee = once
       }
     };
 
-    let heroTitleTimer;
+    // Показываем заголовок только после замера: иначе на миг видно вёрстку
+    // fallback-шрифтом и происходит перескок после подстановки Montserrat.
+    const revealHeroTitle = () => {
+      syncHeroTitle();
+      heroTitle.classList.add('is-ready');
+    };
+
+    // Пересчёт на ресайзе — раз в кадр (rAF), без debounce-паузы:
+    // при растягивании окна строки переключаются без ощутимой задержки.
+    let heroTitleRaf = 0;
     window.addEventListener('resize', () => {
-      clearTimeout(heroTitleTimer);
-      heroTitleTimer = setTimeout(syncHeroTitle, 100);
+      if (heroTitleRaf) return;
+      heroTitleRaf = requestAnimationFrame(() => {
+        heroTitleRaf = 0;
+        syncHeroTitle();
+      });
     });
 
-    window.addEventListener('load', syncHeroTitle);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncHeroTitle);
-    syncHeroTitle();
+    // Ждём именно готовности шрифтов — только тогда метрики финальны.
+    // load/таймер — страховка на случай отсутствия Font Loading API.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(revealHeroTitle);
+    } else {
+      window.addEventListener('load', revealHeroTitle);
+      setTimeout(revealHeroTitle, 1000);
+    }
   }
 
 });

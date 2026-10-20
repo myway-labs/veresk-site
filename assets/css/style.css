@@ -631,8 +631,16 @@ a.logo-wrap:hover .logo-icon {
     line-height: 1.5;
     text-transform: uppercase;
     /* Пробелы шире — как у tracking-bold (там letter-spacing идёт и после пробела).
-       Межбуквенное не трогаем. */
+        Межбуквенное не трогаем. */
     word-spacing: 0.05em;
+    /* Скрыт до первого замера строк (JS ставит .is-ready): иначе на миг видно
+       вёрстку fallback-шрифтом, затем перескок после подстановки Montserrat.
+       visibility (не display) сохраняет место — раскладка не прыгает. */
+    visibility: hidden;
+}
+
+.hero-title.is-ready {
+    visibility: visible;
 }
 
 /* Смысловые строки H1. База: две верхние строки — отдельные блоки,

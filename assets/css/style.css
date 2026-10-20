@@ -83,7 +83,6 @@
     /* Золото звёзд yandex-stars */
     --yandex-gold: #ffc107;
     --radius-main: 1.5rem;
-    --radius-asym: 2rem 0.5rem 2rem 2rem;
     --hero-image: url('../img/hero-violet.webp');
     --yandex-red: #ff3347;
 
@@ -110,7 +109,6 @@
     --fs-label: 1rem;       /* капс-лейблы (триггеры hero, .card-label) */
 
     /* Оригинальные мягкие воздушные тени */
-    --shadow-img: 0 15px 30px rgba(15, 23, 42, 0.04);
     --shadow-cta: 0 25px 50px -12px rgba(15, 23, 42, 0.08);
 }
 
@@ -203,7 +201,6 @@ body.dark-theme {
     --line-color: rgba(255, 255, 255, 0.05);
 
     /* Оригинальные глубокие, но мягкие тени с большим размытием */
-    --shadow-img: 0 20px 40px rgba(0, 0, 0, 0.3);
     --shadow-cta: 0 25px 50px -12px rgba(0, 0, 0, 0.3);
 }
 
@@ -575,6 +572,7 @@ a.logo-wrap:hover .logo-icon {
     gap: 4rem;
     width: 100%;
     position: relative;
+    /* контент hero всегда поверх фото (z-index:0 у .image-container-block) */
     z-index: 10;
 }
 
@@ -800,32 +798,23 @@ body.dark-theme .yandex-score {
 }
 
 /* --------------------------------------------------------------------------
-   ТЕСТОВАЯ ПРИМЕРКА (hero): фото дезинфектора без рамки, увеличенное.
-   Вынуто из потока (absolute к .hero-section), прижато к правому низу,
-   фон сквозной. Старые «коробочные» свойства закомментированы — легко откатить.
+   Фото дезинфектора в hero: вынуто из потока (absolute к .hero-section),
+   прижато к правому верху, фон сквозной (без рамки/скругления/подложки).
    На ≤768 абсолют отключается (см. медиа ниже), там фото в потоке 16.25rem. */
 .image-container-block {
     position: absolute;
     right: 0;
-    /* Прижато к правому ВЕРХНЕМУ углу: не заезжает на CTA (нижний ряд справа) */
     top: 0;
     height: 70%;
     width: 46%;
-    /* рамку/скругление/подложку убираем */
     border: none;
-    /* border: 1px solid var(--border-glass); */
     border-radius: 0;
-    /* border-radius: var(--radius-asym); */
     background: none;
-    /* background: var(--header-bg); */
     overflow: visible;
     box-shadow: none;
-    /* box-shadow: var(--shadow-img); */
-    /* выше .hero-layout (z-index:10): нижняя кромка фото перекрывает верх CTA.
-       Геометрически фото стоит в правой колонке — левый текст/триггеры не задеты. */
+    /* ниже .hero-layout (z-index:10) — фото под контентом hero */
     z-index: 0;
     pointer-events: none;
-    transition: border 0.4s, background 0.4s;
 }
 
 .inline-team-img {
@@ -835,13 +824,8 @@ body.dark-theme .yandex-score {
     background-size: contain;
     background-position: right top;
     background-repeat: no-repeat;
-    /* Возвращаем оригинальный глубокий фильтр, который убирает пересвет */
+    /* Убирает пересвет исходного фото */
     filter: brightness(0.85) contrast(1.1);
-}
-
-/* Контент hero всегда поверх фото */
-.hero-layout {
-    z-index: 10;
 }
 
 /* ==========================================================================
@@ -1247,12 +1231,9 @@ body.dark-theme .yandex-score {
         padding-right: 0 !important;
     }
 
-    /* В один столбец фото не под что растягивать (height:100% от auto = 0) —
-       задаём фиксированную высоту */
+    /* В один столбец фото возвращается в поток фиксированной высотой */
     .image-container-block {
         position: static;
-        right: auto;
-        bottom: auto;
         height: 16.25rem;
         width: 100%;
         pointer-events: auto;

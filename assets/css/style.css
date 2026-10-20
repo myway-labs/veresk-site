@@ -637,6 +637,18 @@ a.logo-wrap:hover .logo-icon {
     word-spacing: 0.05em;
 }
 
+/* Смысловые строки H1. База: две верхние строки — отдельные блоки,
+   перенос внутри — естественный (по ширине колонки). */
+.hero-line {
+    display: block;
+}
+
+/* Мягкий разрыв «Профессиональное / уничтожение»: в базе не разрывает,
+   включается только в compact-режиме. */
+.hero-soft-br {
+    display: inline;
+}
+
 .hero-title tracking-bold {
     font-weight: 700;
     display: block;
@@ -646,11 +658,24 @@ a.logo-wrap:hover .logo-icon {
     margin-top: 0.125rem;
 }
 
-/* Мобильная перекомпоновка H1: переносы строк и скрытие «всех видов» —
-   только на телефонах (≤600px). На планшетах (601–768) и выше текст полный,
-   без принудительных переносов. */
-.hero-br {
+/* Акцентная часть («насекомых и грызунов») */
+.hero-accent {
+    color: var(--accent-color);
+}
+
+/* Compact: H1 не умещается в 4 строки (детект в JS) — включаем жёсткие
+   разрывы и убираем «всех видов», чтобы вернуться к 4 строкам. */
+.hero-title.is-compact .hero-soft-br {
+    display: block;
+}
+
+.hero-title.is-compact .hero-kind {
     display: none;
+}
+
+.hero-title.is-compact .hero-geo {
+    display: block;
+    white-space: nowrap;
 }
 
 /* «в Санкт-Петербурге» на планшетах — отдельной последней строкой, одной
@@ -683,10 +708,6 @@ a.logo-wrap:hover .logo-icon {
         display: inline;
         font-weight: 700;
         letter-spacing: -0.02em;
-    }
-
-    .hero-br {
-        display: inline;
     }
 
     /* Сокращённый H1 на телефоне: убираем только «всех видов»;

@@ -514,4 +514,32 @@ const guarantee = once
     syncToTop();
   }
 
+  // H1 hero: держим заголовок в пределах 3–4 строк. Если из-за зума
+  // (html font-size) или узкой колонки строк становится больше 4 —
+  // включаем compact-режим (жёсткие переносы + скрытие «всех видов»).
+  const heroTitle = document.querySelector('.hero-title');
+
+  if (heroTitle) {
+    const syncHeroTitle = () => {
+      heroTitle.classList.remove('is-compact');
+
+      const styles = getComputedStyle(heroTitle);
+      const lineHeight = parseFloat(styles.lineHeight);
+      if (!lineHeight) return;
+
+      const lines = Math.round(heroTitle.getBoundingClientRect().height / lineHeight);
+      if (lines > 4) heroTitle.classList.add('is-compact');
+    };
+
+    let heroTitleTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(heroTitleTimer);
+      heroTitleTimer = setTimeout(syncHeroTitle, 100);
+    });
+
+    window.addEventListener('load', syncHeroTitle);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncHeroTitle);
+    syncHeroTitle();
+  }
+
 });

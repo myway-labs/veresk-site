@@ -718,17 +718,6 @@ a.logo-wrap:hover .logo-icon {
         font-weight: 700;
         letter-spacing: -0.02em;
     }
-
-    /* Сокращённый H1 на телефоне: убираем только «всех видов»;
-       гео-хвост идёт отдельной строкой, как на десктопе */
-    .hero-kind {
-        display: none;
-    }
-
-    .hero-geo {
-        display: block;
-        white-space: nowrap;
-    }
 }
 
 /* H1 = 4.7% текстовой колонки (контейнер — .hero-headline-block, content-box без padding-right). */

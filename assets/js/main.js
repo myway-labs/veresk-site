@@ -516,19 +516,24 @@ const guarantee = once
 
   // H1 hero: держим заголовок в пределах 3–4 строк. Если из-за зума
   // (html font-size) или узкой колонки строк становится больше 4 —
-  // включаем compact-режим (жёсткие переносы + скрытие «всех видов»).
+  // применяем уровни сжатия по возрастанию, пока не вернёмся к ≤4.
+  // Уровни: 0 — натуральная вёрстка; 1 — разрыв «Профессиональное/
+  // уничтожение» + скрытие «всех видов»; 2 — то же + гео «в СПб».
   const heroTitle = document.querySelector('.hero-title');
 
   if (heroTitle) {
+    const countLines = () => {
+      const lineHeight = parseFloat(getComputedStyle(heroTitle).lineHeight);
+      if (!lineHeight) return 0;
+      return Math.round(heroTitle.getBoundingClientRect().height / lineHeight);
+    };
+
     const syncHeroTitle = () => {
-      heroTitle.classList.remove('is-compact');
-
-      const styles = getComputedStyle(heroTitle);
-      const lineHeight = parseFloat(styles.lineHeight);
-      if (!lineHeight) return;
-
-      const lines = Math.round(heroTitle.getBoundingClientRect().height / lineHeight);
-      if (lines > 4) heroTitle.classList.add('is-compact');
+      heroTitle.classList.remove('is-compact', 'is-compact-2');
+      if (countLines() > 4) {
+        heroTitle.classList.add('is-compact');
+        if (countLines() > 4) heroTitle.classList.add('is-compact-2');
+      }
     };
 
     let heroTitleTimer;

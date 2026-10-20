@@ -663,8 +663,14 @@ a.logo-wrap:hover .logo-icon {
     color: var(--accent-color);
 }
 
-/* Compact: H1 не умещается в 4 строки (детект в JS) — включаем жёсткие
-   разрывы и убираем «всех видов», чтобы вернуться к 4 строкам. */
+/* Сокращённый гео-хвост — включается только на верхнем уровне сжатия */
+.hero-geo-short {
+    display: none;
+}
+
+/* Каскад сжатия H1 (детект числа строк в JS).
+   Уровень 1 (is-compact): жёсткий разрыв «Профессиональное/уничтожение»,
+   скрытие «всех видов», гео — отдельной строкой. */
 .hero-title.is-compact .hero-soft-br {
     display: block;
 }
@@ -676,6 +682,21 @@ a.logo-wrap:hover .logo-icon {
 .hero-title.is-compact .hero-geo {
     display: block;
     white-space: nowrap;
+}
+
+/* Уровень 2 (is-compact-2): к уровню 1 добавляем сокращение гео до «в СПб».
+   Гео возвращаем в инлайн — «в СПб» встаёт в конец 4-й строки, рядом с «грызунов». */
+.hero-title.is-compact-2 .hero-geo {
+    display: inline;
+    white-space: normal;
+}
+
+.hero-title.is-compact-2 .hero-geo-full {
+    display: none;
+}
+
+.hero-title.is-compact-2 .hero-geo-short {
+    display: inline;
 }
 
 /* Заголовок hero не умещался в телефон: 39px оставалось на всех ширинах.

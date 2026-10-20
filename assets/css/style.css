@@ -789,7 +789,8 @@ body.dark-theme .yandex-score {
     overflow: visible;
     box-shadow: none;
     /* box-shadow: var(--shadow-img); */
-    /* ниже .hero-layout (z-index:10) — фон под контентом */
+    /* выше .hero-layout (z-index:10): нижняя кромка фото перекрывает верх CTA.
+       Геометрически фото стоит в правой колонке — левый текст/триггеры не задеты. */
     z-index: 0;
     pointer-events: none;
     transition: border 0.4s, background 0.4s;

@@ -99,11 +99,21 @@ let scrollTimeout;
 let lastScrollY = window.scrollY;
 let scrollDir = 0;
 
+// Кэш максимальной прокрутки: не читаем scrollHeight на каждое wheel-событие
+// (это заставляет браузер пересчитывать layout прямо во время скролла).
+let maxScroll = 0;
+
+function updateScrollMetrics() {
+  maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+}
+
 // Отслеживаем мышку
 window.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  targetMouseX = e.clientX - rect.left;
-  
+  // Полоса во всю ширину вьюпорта (left: 0), поэтому координату внутри canvas
+  // считаем сами по текущему сдвигу — без getBoundingClientRect, который
+  // вызывает пересчёт layout на каждом движении мыши.
+  targetMouseX = e.clientX - grassShown * width;
+
   // Убираем резкий скачок при первом входе мыши на канвас
   if (smoothedMouseX === -1000) smoothedMouseX = targetMouseX;
 });
@@ -186,8 +196,10 @@ function syncFieldPosition() {
 // Сверху скролл «на паузе»: сначала жестом убираем траву, и только потом
 // страница начинает скроллиться. Снизу (у футера) — наоборот: жест выдвигает
 // траву обратно, а скролл вверх сначала убирает её.
-const GRASS_SLIDE_RATIO = 0.6; // полный сдвиг за 60% высоты экрана
-const GRASS_EASE = 0.12;       // сглаживание transform (меньше — плавнее)
+const GRASS_SLIDE_RATIO = 1; // полный сдвиг за высоту экрана: медленнее жест
+const GRASS_EASE = 0.12;       // плавный возврат (меньше — плавнее)
+const GRASS_EASE_OUT = 0.35;   // быстрая уборка фолбэком, чтобы трава не висла
+                               // над контентом при скролле клавиатурой/скроллбаром
 
 // -1 — полоса за левым краем, 0 — на месте, +1 — за правым краем
 let grassShift = 0;   // цель
@@ -203,7 +215,7 @@ function slideDistance() {
 }
 
 function maxScrollY() {
-  return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  return maxScroll;
 }
 
 function isAtTop() {
@@ -250,6 +262,8 @@ function revealGrass(side) {
 // наверху трава возвращается с той стороны, куда шёл скролл; в середине —
 // убрана; у футера цель не трогаем.
 function syncScrollState() {
+  updateScrollMetrics();
+
   if (isAtTop()) {
     revealGrass(scrollDir < 0 ? 1 : -1);
   } else if (isAtBottom()) {
@@ -272,7 +286,8 @@ function syncFieldTransform() {
     grassShown = grassShift;
   }
 
-  const ease = reduceMotionMQ.matches ? 1 : GRASS_EASE;
+  const hiding = Math.abs(grassShift) > Math.abs(grassShown);
+  const ease = reduceMotionMQ.matches ? 1 : (hiding ? GRASS_EASE_OUT : GRASS_EASE);
   grassShown += (grassShift - grassShown) * ease;
   if (Math.abs(grassShift - grassShown) < 0.001) grassShown = grassShift;
 
@@ -319,6 +334,11 @@ function applyGrassGesture(delta) {
 
   const step = Math.abs(delta) / slideDistance();
   grassShift += Math.sign(diff) * Math.min(step, Math.abs(diff));
+
+  // Жест ведёт полосу напрямую, без догоняющего lerp. Иначе страница
+  // отпускается раньше, чем трава реально ушла за кадр, и можно уехать
+  // вверх с травой на экране.
+  grassShown = grassShift;
   return true;
 }
 
@@ -376,9 +396,6 @@ class HeatherBush {
     this.height = (BUSH_HEIGHT_MIN + Math.random() * BUSH_HEIGHT_SPREAD) * scale;
     this.speed = 0.01 + Math.random() * 0.01; 
     this.offset = Math.random() * Math.PI * 2;
-    
-    // Цвета берём из палитры выше (значения приходят из CSS-переменных)
-    this.stemColor = stemColor;
 
     // Цветки: зелёные «листики» по стеблю + редкие фиолетовые на самых кончиках.
     // Цвет у каждого свой; прозрачность — отдельным числом (без склейки rgba)
@@ -405,14 +422,14 @@ class HeatherBush {
     });
   }
 
-  draw(time) {
+  sway(time) {
     // Базовый очень медленный фоновый ветер
     let wind = Math.sin(time * this.speed + this.offset) * 2;
-    
+
     // Эффект от скролла (наклоняет всё поле)
     wind += scrollWind * Math.sin(time * 0.05 + this.offset * 0.1);
 
-    // Эффект от мышки теперь рассчитывается от СГЛАЖЕННОЙ координаты (smoothedMouseX)
+    // Эффект от мышки рассчитывается от СГЛАЖЕННОЙ координаты
     const mouseRadius = MOUSE_RADIUS * scale;
     const distToMouse = Math.abs(this.x - smoothedMouseX);
     if (distToMouse < mouseRadius) {
@@ -420,33 +437,8 @@ class HeatherBush {
       const direction = this.x > smoothedMouseX ? 1 : -1;
       wind += direction * force * 10; // Сила отталкивания от мыши
     }
-    
-    // Отрисовка стебля
-    ctx.beginPath();
-    ctx.moveTo(this.x, height);
-    const cpX = this.x + wind * 0.4;
-    const cpY = height - this.height * 0.4;
-    const endX = this.x + wind;
-    const endY = height - this.height;
-    
-    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
-    ctx.globalAlpha = STEM_ALPHA;
-    ctx.strokeStyle = this.stemColor;
-    ctx.lineWidth = 1.5 * scale;
-    ctx.stroke();
 
-    // Отрисовка статичных (не мерцающих) цветов
-    this.flowers.forEach(f => {
-      const fx = (1 - f.t) * (1 - f.t) * this.x + 2 * (1 - f.t) * f.t * cpX + f.t * f.t * endX + f.offsetX;
-      const fy = (1 - f.t) * (1 - f.t) * height + 2 * (1 - f.t) * f.t * cpY + f.t * f.t * endY + f.offsetY;
-      
-      ctx.globalAlpha = f.alpha;
-      ctx.beginPath();
-      ctx.arc(fx, fy, f.size, 0, Math.PI * 2);
-      ctx.fillStyle = f.color;
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
+    return wind;
   }
 }
 
@@ -459,8 +451,66 @@ function initHeatherField() {
   }
 }
 
-let animTime = 0;
-function renderField() {
+// Батчинг: все стебли рисуются одним path/stroke, цветки группируются по
+// цвету и прозрачности (шаг 0.05). Иначе выходит ~480 stroke + ~3800 fill
+// на кадр — это и есть основной источник микролагов и нагрева.
+function drawHeatherField(time) {
+  ctx.clearRect(0, 0, width, height);
+
+  const flowers = new Map();
+
+  ctx.beginPath();
+  for (const bush of bushes) {
+    const wind = bush.sway(time);
+    const cpX = bush.x + wind * 0.4;
+    const cpY = height - bush.height * 0.4;
+    const endX = bush.x + wind;
+    const endY = height - bush.height;
+
+    ctx.moveTo(bush.x, height);
+    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+
+    for (const f of bush.flowers) {
+      const inv = 1 - f.t;
+      const fx = inv * inv * bush.x + 2 * inv * f.t * cpX + f.t * f.t * endX + f.offsetX;
+      const fy = inv * inv * height + 2 * inv * f.t * cpY + f.t * f.t * endY + f.offsetY;
+      const alpha = Math.round(f.alpha * 20) / 20;
+      const key = f.color + '|' + alpha;
+
+      let group = flowers.get(key);
+      if (!group) {
+        group = { color: f.color, alpha, points: [] };
+        flowers.set(key, group);
+      }
+      group.points.push(fx, fy, f.size);
+    }
+  }
+
+  ctx.globalAlpha = STEM_ALPHA;
+  ctx.strokeStyle = stemColor;
+  ctx.lineWidth = 1.5 * scale;
+  ctx.stroke();
+
+  for (const group of flowers.values()) {
+    ctx.globalAlpha = group.alpha;
+    ctx.fillStyle = group.color;
+    ctx.beginPath();
+
+    const p = group.points;
+    for (let i = 0; i < p.length; i += 3) {
+      const x = p[i];
+      const y = p[i + 1];
+      const r = p[i + 2];
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+function renderField(now = performance.now()) {
   syncFieldTransform();
 
   // Математика задержки (Линейная интерполяция / LERP)
@@ -479,9 +529,9 @@ function renderField() {
     && !fieldContainer.classList.contains('is-hidden');
 
   if (drawField) {
-    ctx.clearRect(0, 0, width, height);
-    animTime++;
-    bushes.forEach(bush => bush.draw(animTime * 0.5));
+    // Время в тех же единицах, что и раньше при 60 fps (кадр ≈ 0.5),
+    // поэтому скорость ветра не зависит от частоты отрисовки.
+    drawHeatherField(now * 0.03);
   }
 
   requestAnimationFrame(renderField);
@@ -490,4 +540,4 @@ function renderField() {
 syncScale();
 syncFieldPosition();
 initHeatherField();
-renderField();
+requestAnimationFrame(renderField);

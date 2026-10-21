@@ -807,7 +807,8 @@ body.dark-theme .yandex-score {
     border: none;
     border-radius: 0;
     background: none;
-    overflow: visible;
+    /* Обрезает лишнее снизу: фото масштабируется по ширине (см. .inline-team-img) */
+    overflow: hidden;
     box-shadow: none;
     /* ниже .hero-layout (z-index:10) — фото под контентом hero */
     z-index: 0;
@@ -818,7 +819,9 @@ body.dark-theme .yandex-score {
     width: 100%;
     height: 100%;
     background-image: var(--hero-image);
-    background-size: contain;
+    /* Масштаб только по ширине контейнера — фото не сжимается по высоте,
+       лишнее (низ, ноги) обрезается контейнером */
+    background-size: 100% auto;
     background-position: right top;
     background-repeat: no-repeat;
     /* Убирает пересвет исходного фото */

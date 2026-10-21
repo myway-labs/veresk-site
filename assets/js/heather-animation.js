@@ -1,8 +1,26 @@
 const canvas = document.getElementById('heatherFieldCanvas');
 const ctx = canvas.getContext('2d');
 
+// Высоту полосы задаёт CSS-токен --heather-h (единый источник).
+// Важно: getPropertyValue для custom property отдаёт СПЕЦИФИЦИРОВАННОЕ значение
+// ("3.75rem"), а не px — rem не резолвится браузером. Поэтому единицу разбираем
+// сами и переводим rem в px по текущему корневому font-size (учитывает zoom-тиры).
+const HEATHER_H_FALLBACK = 60;
+function readHeatherHeight() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--heather-h').trim();
+  const num = parseFloat(raw);
+  if (!Number.isFinite(num) || num <= 0) return HEATHER_H_FALLBACK;
+
+  if (raw.endsWith('rem')) {
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    if (Number.isFinite(rootPx) && rootPx > 0) return num * rootPx;
+  }
+  // px (или без единицы) — используем как есть
+  return num;
+}
+
 let width = canvas.width = window.innerWidth;
-let height = canvas.height = 60;
+let height = canvas.height = readHeatherHeight();
 
 // ==== НАСТРОЙКА ГУСТОТЫ ПОЛЯ ВЕРЕСКА ====
 const HEATHER_DENSITY_STEP = 3;   // шаг между кустиками, px (меньше — плотнее)
@@ -87,7 +105,7 @@ window.addEventListener('scroll', () => {
 
 window.addEventListener('resize', () => {
   width = canvas.width = window.innerWidth;
-  height = canvas.height = 60;
+  height = canvas.height = readHeatherHeight();
   readBrandColors();
   initHeatherField();
   syncFieldPosition();
@@ -99,7 +117,7 @@ const heroBottomRow = document.querySelector('.hero-bottom-row');
 // Универсальная адаптация полосы
 function syncFieldPosition() {
   if (!fieldContainer || !heroBottomRow) return;
-  const stripHeight = fieldContainer.offsetHeight || 60;
+  const stripHeight = fieldContainer.offsetHeight || height;
   const rowBottom = heroBottomRow.getBoundingClientRect().bottom + window.scrollY;
   const overlap = rowBottom > window.innerHeight - stripHeight;
   fieldContainer.classList.toggle('is-inflow', overlap);

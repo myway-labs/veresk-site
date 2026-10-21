@@ -1290,11 +1290,6 @@ body.dark-theme .yandex-score {
     scroll-margin-top: var(--anchor-gap);
 }
 
-/* Якоря первого экрана. «Каталог вредителей» идёт сразу после полосы
-   вереска — компенсируем её высоту; у «Цен» нет */
-.pest-section {
-    scroll-margin-top: calc(var(--anchor-gap) - var(--heather-h));
-}
 #quiz-section {
     scroll-margin-top: var(--anchor-gap);
 }

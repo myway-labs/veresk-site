@@ -1231,18 +1231,26 @@ body.dark-theme .yandex-score {
         padding-right: 0 !important;
     }
 
-    /* В один столбец фото возвращается в поток фиксированной высотой */
+    /* Триггеры встают вплотную к низу фото: гасим межрядный gap */
+    .hero-layout {
+        gap: 0;
+    }
+
+    /* В один столбец фото фиксированной горизонтальной пропорцией:
+       обрезается только низ (остаётся верхние 47% фото 832×995). */
     .image-container-block {
         position: static;
-        height: 16.25rem;
+        height: auto;
+        aspect-ratio: 832 / 468;
         width: 100%;
         pointer-events: auto;
     }
 
     .inline-team-img {
         width: 100%;
-        background-size: cover;
-        background-position: center;
+        /* Как на десктопе: масштаб по ширине, верх закреплён, обрезается только низ */
+        background-size: 100% auto;
+        background-position: right top;
     }
 
     .triggers-grid {

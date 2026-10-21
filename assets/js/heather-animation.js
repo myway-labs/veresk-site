@@ -128,13 +128,27 @@ window.addEventListener('resize', () => {
 const fieldContainer = document.querySelector('.heather-field-container');
 const heroBottomRow = document.querySelector('.hero-bottom-row');
 
-// Универсальная адаптация полосы
+// Полоса травы показывается у нижней границы первого экрана, только если
+// свободного места под контентом hero хватает: не меньше высоты самой травы
+// и не слишком много (иначе между hero и травой — пустота). Вне диапазона
+// трава скрывается целиком (display:none), место схлопывается.
+const HEATHER_FREE_MIN_MULT = 1;   // мин. свободная полоса = трава × 1
+const HEATHER_FREE_MAX_MULT = 3;   // макс. свободная полоса = трава × 3
+
 function syncFieldPosition() {
   if (!fieldContainer || !heroBottomRow) return;
-  const stripHeight = fieldContainer.offsetHeight || height;
+
+  // Низ контента hero в координатах от верха страницы (без влияния скролла)
   const rowBottom = heroBottomRow.getBoundingClientRect().bottom + window.scrollY;
-  const overlap = rowBottom > window.innerHeight - stripHeight;
-  fieldContainer.classList.toggle('is-inflow', overlap);
+  // От низа контента hero до низа первого экрана (scrollY = 0)
+  const freeSpace = window.innerHeight - rowBottom;
+  // Высоту травы берём из токена (height), т.к. у скрытого display:none offsetHeight = 0
+  const stripHeight = height || fieldContainer.offsetHeight;
+
+  const fits = freeSpace >= stripHeight * HEATHER_FREE_MIN_MULT
+            && freeSpace <= stripHeight * HEATHER_FREE_MAX_MULT;
+
+  fieldContainer.classList.toggle('is-hidden', !fits);
 }
 
 window.addEventListener('load', syncFieldPosition);

@@ -548,6 +548,8 @@ a.logo-wrap:hover .logo-icon {
        осям обрезал бы линию по низу секции. */
     overflow-x: clip;
     overflow-y: visible;
+    /* Первый экран: низ секции = низ видимой области, к нему прижато поле вереска */
+    min-height: 100vh;
     padding: var(--section-pad-y) var(--gutter);
     /* при переходе по логотипу hero не уезжает под липкий header */
     scroll-margin-top: calc(var(--header-h) + 0.625rem);
@@ -1097,10 +1099,11 @@ body.dark-theme .yandex-score {
     mask-image: linear-gradient(to bottom, #000 calc(100% - 0.3125rem), transparent 100%);
 }
 
-/* JS переводит поле в поток (в конец героя, перед следующей секцией),
-   как только контент героя начинает дотягиваться до полосы */
-.heather-field-container.is-inflow {
-    position: static;
+/* JS скрывает поле (display:none), когда свободной высоты первого экрана
+   недостаточно под траву или её слишком много (пустота между hero и травой).
+   Скрытый элемент (position:absolute) не влияет на поток — место схлопывается. */
+.heather-field-container.is-hidden {
+    display: none;
 }
 
 /* ==========================================================================
@@ -1267,11 +1270,6 @@ body.dark-theme .yandex-score {
         grid-template-rows: none;
         grid-auto-rows: 1fr;
     }
-
-    /* Вересковое поле становится обычным блоком и уходит в поток после героя */
-    .heather-field-container {
-        position: static;
-    }
 }
 
 
@@ -1292,15 +1290,8 @@ body.dark-theme .yandex-score {
     scroll-margin-top: var(--anchor-gap);
 }
 
-/* Только стык «hero → Стоимость обработки»: заголовок отступает от верхнего
-   блока hero на высоту полосы анимации вереска (--heather-h).
-   Когда полоса уходит в поток (.is-inflow), лишний отступ не нужен. */
-.heather-field-container:not(.is-inflow) + .calc-section {
-    padding-top: calc(var(--section-pad-y) + var(--heather-h));
-}
-
 /* Якоря первого экрана. «Каталог вредителей» идёт сразу после полосы
-   вереска и наследует её доп. отступ (+--heather-h) — компенсируем; у «Цен» нет */
+   вереска — компенсируем её высоту; у «Цен» нет */
 .pest-section {
     scroll-margin-top: calc(var(--anchor-gap) - var(--heather-h));
 }

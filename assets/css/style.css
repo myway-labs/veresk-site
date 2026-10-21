@@ -568,10 +568,8 @@ a.logo-wrap:hover .logo-icon {
     position: absolute;
     top: 0;
     bottom: 0;
-    /* Тянется по высоте СЕКЦИИ (padding-box), а не от вьюпорта. Когда поле
-       вереска скрыто, hero сжимается до контента — линия заканчивается на его
-       границе и не уходит в пустоту. При видимой траве секция растянута до
-       низа экрана, линия доходит до травы (она перекрывает её как декор). */
+    /* По умолчанию — по высоте секции (padding-box). Это состояние «трава
+       скрыта»: hero сжат до контента, линия заканчивается на его границе. */
     height: auto;
     left: 58.3333%;
     width: 1px;
@@ -579,6 +577,13 @@ a.logo-wrap:hover .logo-icon {
     /* над фото (z-index:0), под контентом hero (.hero-layout z-index:10) */
     z-index: 1;
     transition: background 0.4s;
+}
+
+/* Трава видна: она прижата к низу первого экрана, поэтому линию обрываем
+   за 1rem до её верха — иначе она проходит сквозь траву до основания. */
+.hero-section:not(.is-grass-hidden) .global-vertical-line {
+    bottom: auto;
+    height: calc(100vh - var(--header-h) - var(--heather-h) - 1rem);
 }
 
 .hero-layout {

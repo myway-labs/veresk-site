@@ -22,7 +22,20 @@ function readHeatherHeight() {
 let width = canvas.width = window.innerWidth;
 let height = canvas.height = readHeatherHeight();
 
-// ==== НАСТРОЙКА ГУСТОТЫ ПОЛЯ ВЕРЕСКА ====
+// ==== МАСШТАБ ТРАВЫ (единая система адаптации rem) ====
+// Пространственные размеры травы заданы в px «базового корня» (16px) и
+// домножаются на scale = корневой font-size / 16. На zoom-тирах корень растёт
+// (×1.08 / ×1.3), вместе с ним растёт вся трава — консистентно с текстом.
+// Непространственные параметры (количество, прозрачность) не масштабируются.
+const BASE_ROOT_PX = 16;
+let scale = 1;
+
+function syncScale() {
+  const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  scale = Number.isFinite(rootPx) && rootPx > 0 ? rootPx / BASE_ROOT_PX : 1;
+}
+
+// ==== НАСТРОЙКА ГУСТОТЫ ПОЛЯ ВЕРЕСКА (значения для корня 16px) ====
 const HEATHER_DENSITY_STEP = 3;   // шаг между кустиками, px (меньше — плотнее)
 const BUSH_HEIGHT_MIN = 25;       // мин. высота кустика, px
 const BUSH_HEIGHT_SPREAD = 20;    // случайный разброс высоты, px
@@ -106,6 +119,7 @@ window.addEventListener('scroll', () => {
 window.addEventListener('resize', () => {
   width = canvas.width = window.innerWidth;
   height = canvas.height = readHeatherHeight();
+  syncScale();
   readBrandColors();
   initHeatherField();
   syncFieldPosition();
@@ -128,7 +142,7 @@ window.addEventListener('load', syncFieldPosition);
 class HeatherBush {
   constructor(x) {
     this.x = x;
-    this.height = BUSH_HEIGHT_MIN + Math.random() * BUSH_HEIGHT_SPREAD; // Высота из настроек выше
+    this.height = (BUSH_HEIGHT_MIN + Math.random() * BUSH_HEIGHT_SPREAD) * scale;
     this.speed = 0.01 + Math.random() * 0.01; 
     this.offset = Math.random() * Math.PI * 2;
     
@@ -150,10 +164,10 @@ class HeatherBush {
       this.flowers.push({
         // зелёные — вдоль стебля, фиолетовые — ближе к верхушке
         t: isViolet ? 0.78 + (i - GREENS_PER_BUSH) * 0.12 : 0.3 + greenIndex * 0.42,
-        offsetX: (Math.random() - 0.5) * 3,
-        offsetY: (Math.random() - 0.5) * 2,
-        size: isViolet ? VIOLET_SIZE_MIN + Math.random() * VIOLET_SIZE_SPREAD
-                       : GREEN_SIZE_MIN + Math.random() * GREEN_SIZE_SPREAD,
+        offsetX: (Math.random() - 0.5) * 3 * scale,
+        offsetY: (Math.random() - 0.5) * 2 * scale,
+        size: (isViolet ? VIOLET_SIZE_MIN + Math.random() * VIOLET_SIZE_SPREAD
+                        : GREEN_SIZE_MIN + Math.random() * GREEN_SIZE_SPREAD) * scale,
         color,
         alpha: FLOWER_ALPHA_MIN + Math.random() * FLOWER_ALPHA_SPREAD
       });
@@ -168,9 +182,10 @@ class HeatherBush {
     wind += scrollWind * Math.sin(time * 0.05 + this.offset * 0.1);
 
     // Эффект от мышки теперь рассчитывается от СГЛАЖЕННОЙ координаты (smoothedMouseX)
+    const mouseRadius = MOUSE_RADIUS * scale;
     const distToMouse = Math.abs(this.x - smoothedMouseX);
-    if (distToMouse < MOUSE_RADIUS) {
-      const force = (MOUSE_RADIUS - distToMouse) / MOUSE_RADIUS;
+    if (distToMouse < mouseRadius) {
+      const force = (mouseRadius - distToMouse) / mouseRadius;
       const direction = this.x > smoothedMouseX ? 1 : -1;
       wind += direction * force * 10; // Сила отталкивания от мыши
     }
@@ -186,7 +201,7 @@ class HeatherBush {
     ctx.quadraticCurveTo(cpX, cpY, endX, endY);
     ctx.globalAlpha = STEM_ALPHA;
     ctx.strokeStyle = this.stemColor;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.5 * scale;
     ctx.stroke();
 
     // Отрисовка статичных (не мерцающих) цветов
@@ -207,8 +222,8 @@ class HeatherBush {
 let bushes = [];
 function initHeatherField() {
   bushes = [];
-  // Кустики каждые HEATHER_DENSITY_STEP пикселей — плотность поля
-  for (let x = 0; x < width; x += HEATHER_DENSITY_STEP) {
+  // Кустики каждые HEATHER_DENSITY_STEP пикселей (с учётом масштаба) — плотность поля
+  for (let x = 0; x < width; x += HEATHER_DENSITY_STEP * scale) {
     bushes.push(new HeatherBush(x));
   }
 }
@@ -230,6 +245,7 @@ function renderField() {
   requestAnimationFrame(renderField);
 }
 
+syncScale();
 syncFieldPosition();
 initHeatherField();
 renderField();

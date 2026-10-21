@@ -472,6 +472,8 @@ const guarantee = once
     const toTopLimitMQ = window.matchMedia('(min-width: 601px) and (max-width: 768px)');
     const footerBlock = document.querySelector('.footer-grid');
     const footerRestEdge = document.querySelector('.footer-docs .footer-link:last-child');
+    const footerSection = document.querySelector('.site-footer');
+    const grassField = document.querySelector('.heather-field-container');
     let toTopLastBottom = null;
 
     const syncToTop = () => {
@@ -482,6 +484,19 @@ const guarantee = once
       toTopBtn.classList.toggle('is-visible', heroRemaining <= window.innerHeight * 0.15);
 
       let bottom = toTopInset;
+
+      // Упор над травой: пока футер далеко, кнопка стоит на базовом отступе;
+      // по мере его приближения плавно отходит вверх на высоту полосы.
+      // Высота 0, когда трава выключена гейтом (display:none).
+      const grassHeight = grassField ? grassField.offsetHeight : 0;
+      if (grassHeight > 0 && footerSection) {
+        const blendDistance = 200;
+        const footerTop = footerSection.getBoundingClientRect().top;
+        const progress = Math.min(1, Math.max(0, (window.innerHeight - footerTop) / blendDistance));
+        const eased = progress * progress * (3 - 2 * progress);
+        bottom = Math.max(bottom, toTopInset + grassHeight * eased);
+      }
+
       // Ограничитель: 601–768px кнопка поднимается над нижней строкой футера
       if (toTopLimitMQ.matches && footerBlock && footerRestEdge) {
         const blockRect = footerBlock.getBoundingClientRect();

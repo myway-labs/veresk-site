@@ -108,12 +108,21 @@ window.addEventListener('mouseleave', () => {
 });
 
 // Отслеживаем скролл (усиливаем ветер при прокрутке)
+let scrollSyncQueued = false;
 window.addEventListener('scroll', () => {
   scrollWind = 2; // Сила наклона при скролле
   clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(() => {
     scrollWind = 0;
   }, 150); // Как только скролл затих, ветер уходит
+
+  // Позиция полосы зависит от скролла — пересчитываем не чаще кадра
+  if (scrollSyncQueued) return;
+  scrollSyncQueued = true;
+  requestAnimationFrame(() => {
+    scrollSyncQueued = false;
+    syncScrollState();
+  });
 });
 
 window.addEventListener('resize', () => {
@@ -128,6 +137,7 @@ window.addEventListener('resize', () => {
 const fieldContainer = document.querySelector('.heather-field-container');
 const heroSection = document.querySelector('.hero-section');
 const heroBottomRow = document.querySelector('.hero-bottom-row');
+const footerSection = document.querySelector('.site-footer');
 
 // Полоса травы показывается у нижней границы первого экрана, только если
 // свободного места под контентом hero хватает: не меньше высоты самой травы
@@ -153,6 +163,149 @@ function syncFieldPosition() {
   fieldContainer.classList.toggle('is-hidden', !fits);
   // Когда трава скрыта, hero не резервирует первый экран (иначе пустота)
   if (heroSection) heroSection.classList.toggle('is-grass-hidden', !fits);
+  // У футера трава занимает нижнюю кромку — резервируем под неё полосу
+  if (footerSection) footerSection.classList.toggle('is-grass-padded', fits);
+
+  syncScrollState();
+}
+
+// ==== СДВИГ ПОЛОСЫ ПРИ СКРОЛЛЕ ====
+// Полоса всегда лежит на нижней кромке вьюпорта и уезжает влево по жесту.
+// Сверху скролл «на паузе»: сначала жестом убираем траву, и только потом
+// страница начинает скроллиться. Снизу (у футера) — наоборот: жест выдвигает
+// траву обратно, а скролл вверх сначала убирает её.
+const GRASS_SLIDE_RATIO = 0.6; // полный сдвиг за 60% высоты экрана
+const GRASS_EASE = 0.12;       // сглаживание transform (меньше — плавнее)
+
+let grassIn = 1;       // 1 — полоса на месте, 0 — ушла влево
+let grassInShown = 1;  // сглаженное значение для transform
+let fieldVisible = true;
+let lastFieldTransform = '';
+
+const reduceMotionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+// Одна и та же дистанция для уборки сверху, выдвижения и уборки снизу
+function slideDistance() {
+  return Math.max(1, window.innerHeight * GRASS_SLIDE_RATIO);
+}
+
+function maxScrollY() {
+  return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+}
+
+function isAtTop() {
+  return window.scrollY <= 0.5;
+}
+
+function isAtBottom() {
+  return window.scrollY >= maxScrollY() - 1;
+}
+
+function canMoveGrass() {
+  return !!fieldContainer && !fieldContainer.classList.contains('is-hidden');
+}
+
+function setGrassIn(value) {
+  grassIn = Math.min(1, Math.max(0, value));
+}
+
+// Фолбэк без перехвата (клавиатура, скроллбар, якоря, «наверх»):
+// наверху трава на месте, в середине — убрана, у футера цель не трогаем.
+function syncScrollState() {
+  if (isAtTop()) setGrassIn(1);
+  else if (!isAtBottom()) setGrassIn(0);
+
+  setGrassInterception(isAtTop() || isAtBottom());
+}
+
+// Применяем сдвиг в общем rAF-цикле и сообщаем, видна ли полоса хоть частично
+function syncFieldTransform() {
+  if (!fieldContainer) return;
+
+  const ease = reduceMotionMQ.matches ? 1 : GRASS_EASE;
+  grassInShown += (grassIn - grassInShown) * ease;
+  if (Math.abs(grassIn - grassInShown) < 0.001) grassInShown = grassIn;
+
+  const out = 1 - grassInShown;
+  fieldVisible = out < 0.999;
+
+  const transform = `translate3d(${(-out * 100).toFixed(2)}%, 0, 0)`;
+  if (transform !== lastFieldTransform) {
+    lastFieldTransform = transform;
+    fieldContainer.style.transform = transform;
+  }
+}
+
+// Дельта колеса к пикселям: мышь (пиксели), трекпад, построчный/постраничный режим
+function wheelDeltaPx(e) {
+  if (e.deltaMode === 1) return e.deltaY * 16;
+  if (e.deltaMode === 2) return e.deltaY * window.innerHeight;
+  return e.deltaY;
+}
+
+// Общий жест на границах: наверху вниз — убираем траву, вверх — возвращаем;
+// на дне вниз — выдвигаем, вверх — убираем. Пока трава реально двигается,
+// событие гасим; как только ход закончился — отпускаем странице.
+function applyGrassGesture(delta, prevent) {
+  const atTop = isAtTop();
+  const atBottom = isAtBottom();
+  if (!atTop && !atBottom) return;
+
+  const step = Math.abs(delta) / slideDistance();
+  const next = atTop
+    ? (delta > 0 ? grassIn - step : grassIn + step)
+    : (delta > 0 ? grassIn + step : grassIn - step);
+  const clamped = Math.min(1, Math.max(0, next));
+
+  if (clamped === grassIn) return;
+  prevent();
+  grassIn = clamped;
+}
+
+function onGrassWheel(e) {
+  if (e.ctrlKey || !canMoveGrass()) return;
+
+  const delta = wheelDeltaPx(e);
+  if (!delta) return;
+
+  applyGrassGesture(delta, () => e.preventDefault());
+}
+
+let touchLastY = null;
+
+function onGrassTouchStart(e) {
+  touchLastY = e.touches.length === 1 ? e.touches[0].clientY : null;
+}
+
+function onGrassTouchMove(e) {
+  if (touchLastY === null || e.touches.length !== 1) return;
+
+  const y = e.touches[0].clientY;
+  const delta = touchLastY - y; // палец вверх (скролл вниз) даёт плюс
+  touchLastY = y;
+
+  if (!delta || !canMoveGrass()) return;
+
+  applyGrassGesture(delta, () => e.preventDefault());
+}
+
+function onGrassTouchEnd() {
+  touchLastY = null;
+}
+
+// Перехват живёт только у границ (верх/дно): вне их жесты не слушаем вовсе
+let interceptionOn = null;
+
+function setGrassInterception(active) {
+  const want = active && canMoveGrass();
+  if (want === interceptionOn) return;
+  interceptionOn = want;
+
+  const method = want ? 'addEventListener' : 'removeEventListener';
+  window[method]('wheel', onGrassWheel, { passive: false });
+  window[method]('touchstart', onGrassTouchStart, { passive: true });
+  window[method]('touchmove', onGrassTouchMove, { passive: false });
+  window[method]('touchend', onGrassTouchEnd, { passive: true });
 }
 
 window.addEventListener('load', syncFieldPosition);
@@ -248,9 +401,8 @@ function initHeatherField() {
 
 let animTime = 0;
 function renderField() {
-  ctx.clearRect(0, 0, width, height);
-  animTime++;
-  
+  syncFieldTransform();
+
   // Математика задержки (Линейная интерполяция / LERP)
   // smoothedMouseX плавно догоняет targetMouseX на 7% расстояния за кадр
   if (targetMouseX === -1000) {
@@ -258,8 +410,20 @@ function renderField() {
   } else {
     smoothedMouseX += (targetMouseX - smoothedMouseX) * 0.07;
   }
-  
-  bushes.forEach(bush => bush.draw(animTime * 0.5));
+
+  // Не тратим кадры на отрисовку, когда полоса полностью за кадром,
+  // вкладка скрыта или трава выключена гейтом
+  const drawField = fieldVisible
+    && !document.hidden
+    && fieldContainer
+    && !fieldContainer.classList.contains('is-hidden');
+
+  if (drawField) {
+    ctx.clearRect(0, 0, width, height);
+    animTime++;
+    bushes.forEach(bush => bush.draw(animTime * 0.5));
+  }
+
   requestAnimationFrame(renderField);
 }
 

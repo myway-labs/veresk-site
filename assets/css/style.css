@@ -225,6 +225,9 @@ html {
     /* Единый рычаг масштаба (a11y: от пользовательского дефолта, не фикс. px).
        Крупные тиры усиливают множитель — см. @media 1500/1850 ниже. */
     font-size: 100%;
+    /* В нижней точке страница гасит жест на выдвижение травы: без отскока
+       (rubber-band) и без передачи скролла родителю. */
+    overscroll-behavior-y: none;
 }
 
 body {
@@ -1093,18 +1096,19 @@ body.dark-theme .yandex-score {
    7. ДЕКОР: ПОЛЕ ВЕРЕСКА (CANVAS-АНИМАЦИЯ)
    ========================================================================== */
 .heather-field-container {
-    position: absolute;
-    /* Прижато к низу первого экрана: верх полосы = 100vh минус её высота.
-       Координаты — от верха документа (контейнер вне .hero-section, absolute
-       от initial containing block). */
-    top: calc(100vh - var(--heather-h));
-    bottom: auto;
+    position: fixed;
+    /* Прижато к нижней линии вьюпорта: при скролле полоса не уезжает вверх,
+       а остаётся «землёй» у нижней кромки. Горизонтальный сдвиг задаёт JS:
+       выезд влево при прокрутке к каталогу и возврат у футера. */
+    top: auto;
+    bottom: 0;
     left: 0;
     width: 100%;
     height: var(--heather-h); /* Узкая, аккуратная линия поля-газона */
     overflow: hidden;
     pointer-events: none; /* Мышка кликает сквозь траву, формы не заблокируются */
     z-index: 1;
+    will-change: transform;
 }
 
 #heatherFieldCanvas {
@@ -1120,7 +1124,7 @@ body.dark-theme .yandex-score {
 
 /* JS скрывает поле (display:none), когда свободной высоты первого экрана
    недостаточно под траву или её слишком много (пустота между hero и травой).
-   Скрытый элемент (position:absolute) не влияет на поток — место схлопывается. */
+   Скрытый элемент (position:fixed) не влияет на поток — место схлопывается. */
 .heather-field-container.is-hidden {
     display: none;
 }
@@ -3419,6 +3423,13 @@ body.dark-theme .geo-map-tint {
     border-top: 1px solid var(--border-grid);
     background: var(--card-cta-bg);
     padding: 4rem var(--gutter) 2.5rem;
+}
+
+/* Трава у футера занимает нижнюю кромку экрана — резервируем под неё полосу,
+   чтобы © и кредиты не оказывались под травой. Класс ставит JS, когда полоса
+   включена (влезает в первый экран). */
+.site-footer.is-grass-padded {
+    padding-bottom: calc(2.5rem + var(--heather-h));
 }
 
 .footer-grid {

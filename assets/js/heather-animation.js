@@ -94,6 +94,11 @@ let smoothedMouseX = -1000;
 let scrollWind = 0;
 let scrollTimeout;
 
+// Направление скролла и предыдущая позиция нужны, чтобы трава уходила и
+// возвращалась с той стороны, куда движется страница.
+let lastScrollY = window.scrollY;
+let scrollDir = 0;
+
 // Отслеживаем мышку
 window.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -110,6 +115,11 @@ window.addEventListener('mouseleave', () => {
 // Отслеживаем скролл (усиливаем ветер при прокрутке)
 let scrollSyncQueued = false;
 window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (y > lastScrollY + 0.5) scrollDir = 1;
+  else if (y < lastScrollY - 0.5) scrollDir = -1;
+  lastScrollY = y;
+
   scrollWind = 2; // Сила наклона при скролле
   clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(() => {
@@ -128,6 +138,7 @@ window.addEventListener('scroll', () => {
 window.addEventListener('resize', () => {
   width = canvas.width = window.innerWidth;
   height = canvas.height = readHeatherHeight();
+  lastScrollY = window.scrollY;
   syncScale();
   readBrandColors();
   initHeatherField();
@@ -170,15 +181,17 @@ function syncFieldPosition() {
 }
 
 // ==== СДВИГ ПОЛОСЫ ПРИ СКРОЛЛЕ ====
-// Полоса всегда лежит на нижней кромке вьюпорта и уезжает влево по жесту.
+// Полоса ходит «по кругу» относительно направления скролла:
+// вниз — уходит и приходит слева, вверх — уходит и приходит справа.
 // Сверху скролл «на паузе»: сначала жестом убираем траву, и только потом
 // страница начинает скроллиться. Снизу (у футера) — наоборот: жест выдвигает
 // траву обратно, а скролл вверх сначала убирает её.
 const GRASS_SLIDE_RATIO = 0.6; // полный сдвиг за 60% высоты экрана
 const GRASS_EASE = 0.12;       // сглаживание transform (меньше — плавнее)
 
-let grassIn = 1;       // 1 — полоса на месте, 0 — ушла влево
-let grassInShown = 1;  // сглаженное значение для transform
+// -1 — полоса за левым краем, 0 — на месте, +1 — за правым краем
+let grassShift = 0;   // цель
+let grassShown = 0;   // сглаженное значение для transform
 let fieldVisible = true;
 let lastFieldTransform = '';
 
@@ -205,15 +218,45 @@ function canMoveGrass() {
   return !!fieldContainer && !fieldContainer.classList.contains('is-hidden');
 }
 
-function setGrassIn(value) {
-  grassIn = Math.min(1, Math.max(0, value));
+// Убрать траву за указанный край. Сменить сторону можно только когда полоса
+// уже полностью скрыта — тогда подмена незаметна.
+function hideGrass(side) {
+  if (grassShift === 0) {
+    grassShift = side;
+    return;
+  }
+  if (Math.sign(grassShift) === side) return;
+
+  // Полностью скрытую с другой стороны полосу можно перенести незаметно,
+  // иначе (редкий случай: жест оборвался на полпути) доводим до нужного края.
+  if (Math.abs(grassShift) >= 1 && Math.abs(grassShown) >= 0.999) {
+    grassShown = side;
+  }
+  grassShift = side;
+}
+
+// Вернуть траву в кадр с указанного края (или доиграть текущий возврат)
+function revealGrass(side) {
+  if (Math.abs(grassShown) >= 0.999
+      && Math.sign(grassShown) !== 0
+      && Math.sign(grassShown) !== side) {
+    grassShown = side;
+    grassShift = side;
+  }
+  grassShift = 0;
 }
 
 // Фолбэк без перехвата (клавиатура, скроллбар, якоря, «наверх»):
-// наверху трава на месте, в середине — убрана, у футера цель не трогаем.
+// наверху трава возвращается с той стороны, куда шёл скролл; в середине —
+// убрана; у футера цель не трогаем.
 function syncScrollState() {
-  if (isAtTop()) setGrassIn(1);
-  else if (!isAtBottom()) setGrassIn(0);
+  if (isAtTop()) {
+    revealGrass(scrollDir < 0 ? 1 : -1);
+  } else if (isAtBottom()) {
+    if (Math.abs(grassShift) >= 1) hideGrass(scrollDir < 0 ? 1 : -1);
+  } else {
+    hideGrass(scrollDir < 0 ? 1 : -1);
+  }
 
   setGrassInterception(isAtTop() || isAtBottom());
 }
@@ -222,14 +265,20 @@ function syncScrollState() {
 function syncFieldTransform() {
   if (!fieldContainer) return;
 
+  // Пока полоса полностью скрыта, сторону можно поменять без рывка
+  if (Math.abs(grassShown) >= 0.999
+      && Math.abs(grassShift) >= 0.999
+      && Math.sign(grassShown) !== Math.sign(grassShift)) {
+    grassShown = grassShift;
+  }
+
   const ease = reduceMotionMQ.matches ? 1 : GRASS_EASE;
-  grassInShown += (grassIn - grassInShown) * ease;
-  if (Math.abs(grassIn - grassInShown) < 0.001) grassInShown = grassIn;
+  grassShown += (grassShift - grassShown) * ease;
+  if (Math.abs(grassShift - grassShown) < 0.001) grassShown = grassShift;
 
-  const out = 1 - grassInShown;
-  fieldVisible = out < 0.999;
+  fieldVisible = Math.abs(grassShown) < 0.999;
 
-  const transform = `translate3d(${(-out * 100).toFixed(2)}%, 0, 0)`;
+  const transform = `translate3d(${(grassShown * 100).toFixed(2)}%, 0, 0)`;
   if (transform !== lastFieldTransform) {
     lastFieldTransform = transform;
     fieldContainer.style.transform = transform;
@@ -243,23 +292,34 @@ function wheelDeltaPx(e) {
   return e.deltaY;
 }
 
-// Общий жест на границах: наверху вниз — убираем траву, вверх — возвращаем;
-// на дне вниз — выдвигаем, вверх — убираем. Пока трава реально двигается,
-// событие гасим; как только ход закончился — отпускаем странице.
-function applyGrassGesture(delta, prevent) {
+// Общий жест на границах. Вниз: сверху убираем влево, снизу выдвигаем слева.
+// Вверх: снизу убираем вправо, сверху возвращаем справа.
+// Пока трава реально двигается, событие гасим; как только ход закончился —
+// отпускаем странице.
+function applyGrassGesture(delta) {
   const atTop = isAtTop();
   const atBottom = isAtBottom();
-  if (!atTop && !atBottom) return;
+  if (!atTop && !atBottom) return false;
+
+  const down = delta > 0;
+  const side = down ? -1 : 1;
+  const target = atTop
+    ? (down ? -1 : 0)
+    : (down ? 0 : 1);
+
+  // Полоса уже за кадром с другой стороны — меняем сторону незаметно,
+  // чтобы движение совпало с направлением скролла
+  if (Math.abs(grassShown) >= 0.999 && Math.sign(grassShown) !== side) {
+    grassShown = side;
+    grassShift = side;
+  }
+
+  const diff = target - grassShift;
+  if (!diff) return false;
 
   const step = Math.abs(delta) / slideDistance();
-  const next = atTop
-    ? (delta > 0 ? grassIn - step : grassIn + step)
-    : (delta > 0 ? grassIn + step : grassIn - step);
-  const clamped = Math.min(1, Math.max(0, next));
-
-  if (clamped === grassIn) return;
-  prevent();
-  grassIn = clamped;
+  grassShift += Math.sign(diff) * Math.min(step, Math.abs(diff));
+  return true;
 }
 
 function onGrassWheel(e) {
@@ -268,7 +328,7 @@ function onGrassWheel(e) {
   const delta = wheelDeltaPx(e);
   if (!delta) return;
 
-  applyGrassGesture(delta, () => e.preventDefault());
+  if (applyGrassGesture(delta)) e.preventDefault();
 }
 
 let touchLastY = null;
@@ -286,7 +346,7 @@ function onGrassTouchMove(e) {
 
   if (!delta || !canMoveGrass()) return;
 
-  applyGrassGesture(delta, () => e.preventDefault());
+  if (applyGrassGesture(delta)) e.preventDefault();
 }
 
 function onGrassTouchEnd() {

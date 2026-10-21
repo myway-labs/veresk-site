@@ -126,12 +126,14 @@ window.addEventListener('resize', () => {
 });
 
 const fieldContainer = document.querySelector('.heather-field-container');
+const heroSection = document.querySelector('.hero-section');
 const heroBottomRow = document.querySelector('.hero-bottom-row');
 
 // Полоса травы показывается у нижней границы первого экрана, только если
 // свободного места под контентом hero хватает: не меньше высоты самой травы
 // и не слишком много (иначе между hero и травой — пустота). Вне диапазона
-// трава скрывается целиком (display:none), место схлопывается.
+// трава скрывается целиком (display:none), а hero снимает резерв первого
+// экрана (is-grass-hidden) — пустота схлопывается.
 const HEATHER_FREE_MIN_MULT = 1;   // мин. свободная полоса = трава × 1
 const HEATHER_FREE_MAX_MULT = 3;   // макс. свободная полоса = трава × 3
 
@@ -149,6 +151,8 @@ function syncFieldPosition() {
             && freeSpace <= stripHeight * HEATHER_FREE_MAX_MULT;
 
   fieldContainer.classList.toggle('is-hidden', !fits);
+  // Когда трава скрыта, hero не резервирует первый экран (иначе пустота)
+  if (heroSection) heroSection.classList.toggle('is-grass-hidden', !fits);
 }
 
 window.addEventListener('load', syncFieldPosition);

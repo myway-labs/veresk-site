@@ -803,7 +803,8 @@ body.dark-theme .yandex-score {
     right: 0;
     top: 0;
     height: 70%;
-    width: 46%;
+    /* Ширина = от вертикального разделителя (58.3333%) до правого края */
+    width: 40%;
     border: none;
     border-radius: 0;
     background: none;

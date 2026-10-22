@@ -99,12 +99,16 @@ let scrollTimeout;
 let lastScrollY = window.scrollY;
 let scrollDir = 0;
 
-// Кэш максимальной прокрутки: не читаем scrollHeight на каждое wheel-событие
-// (это заставляет браузер пересчитывать layout прямо во время скролла).
+// Кэш максимальной прокрутки: читаем scrollHeight только при изменении
+// размеров документа, а не на каждом wheel/scroll-событии.
 let maxScroll = 0;
 
 function updateScrollMetrics() {
   maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+}
+
+if ('ResizeObserver' in window) {
+  new ResizeObserver(updateScrollMetrics).observe(document.documentElement);
 }
 
 // Отслеживаем мышку
@@ -169,7 +173,10 @@ const HEATHER_FREE_MIN_MULT = 1;   // мин. свободная полоса = 
 const HEATHER_FREE_MAX_MULT = 3;   // макс. свободная полоса = трава × 3
 
 function syncFieldPosition() {
-  if (!fieldContainer || !heroBottomRow) return;
+  if (!fieldContainer || !heroBottomRow) {
+    updateScrollMetrics();
+    return;
+  }
 
   // Низ контента hero в координатах от верха страницы (без влияния скролла)
   const rowBottom = heroBottomRow.getBoundingClientRect().bottom + window.scrollY;
@@ -187,6 +194,7 @@ function syncFieldPosition() {
   // У футера трава занимает нижнюю кромку — резервируем под неё полосу
   if (footerSection) footerSection.classList.toggle('is-grass-padded', fits);
 
+  updateScrollMetrics();
   syncScrollState();
 }
 
@@ -262,8 +270,6 @@ function revealGrass(side) {
 // наверху трава возвращается с той стороны, куда шёл скролл; в середине —
 // убрана; у футера цель не трогаем.
 function syncScrollState() {
-  updateScrollMetrics();
-
   if (isAtTop()) {
     revealGrass(scrollDir < 0 ? 1 : -1);
   } else if (isAtBottom()) {
@@ -540,4 +546,10 @@ function renderField(now = performance.now()) {
 syncScale();
 syncFieldPosition();
 initHeatherField();
+updateScrollMetrics();
+
+// Полный документ может достроиться после загрузки шрифтов/картинок —
+// держим кэш максимальной прокрутки актуальным без чтения scrollHeight в скролле.
+window.addEventListener('load', updateScrollMetrics);
+
 requestAnimationFrame(renderField);

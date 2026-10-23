@@ -24,10 +24,10 @@
 
   // ==== РЕГУЛИРОВКИ (соответствуют слайдерам исходного примера) ====
   const FOG_CONFIG = {
-    // Atmosphere (было hueSlider 0..360). Цвет текстуры дыма.
-    color: 0x00dddd,
+    // Atmosphere (фирменный для тёмной темы 0x00dddd). Цвет текстуры дыма.
+    color: 0xffffff,
     // Intensity (было intensitySlider 0..1). Максимальная плотность частиц.
-    intensity: 0.1,
+    intensity: 0.07,
     // Text Depth (было depthSlider) — в примере двигал слой текста, у нас
     // группа без текста; оставлено как позиция слоя по Z.
     groupDepth: -200,
@@ -82,14 +82,28 @@
     const smokeGeo = new THREE.PlaneGeometry(FOG_CONFIG.planeSize, FOG_CONFIG.planeSize);
 
     loader.load(FOG_CONFIG.texturePath, (texture) => {
-      const smokeMaterial = new THREE.MeshLambertMaterial({
+      // const smokeMaterial = new THREE.MeshLambertMaterial({  // закомментировать для белого
+      // Текстура серая, поэтому умножение на белый цвет оставляет серый дым.
+      // Перекрашиваем только RGB в белый, сохраняя исходную альфу.
+      const image = texture.image;
+      const whiteCanvas = document.createElement('canvas');
+      whiteCanvas.width = image.width;
+      whiteCanvas.height = image.height;
+      const whiteCtx = whiteCanvas.getContext('2d');
+      whiteCtx.drawImage(image, 0, 0);
+      whiteCtx.globalCompositeOperation = 'source-in';
+      whiteCtx.fillStyle = '#bdbdbd';
+      whiteCtx.fillRect(0, 0, whiteCanvas.width, whiteCanvas.height);
+
+      const whiteTexture = new THREE.CanvasTexture(whiteCanvas);
+      whiteTexture.needsUpdate = true;
+
+      const smokeMaterial = new THREE.MeshBasicMaterial({
         color: baseColor,
-        map: texture,
+        map: whiteTexture, // texture whiteTexture
         transparent: true,
         opacity: 0,
         depthWrite: false,
-        // В исходнике THREE.ScreenBlending не существует в three.js, поэтому
-        // материал фактически работал с обычным смешиванием. Оставляем его.
         blending: THREE.NormalBlending,
       });
 

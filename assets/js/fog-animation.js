@@ -27,7 +27,7 @@
     // Atmosphere (фирменный для тёмной темы 0x00dddd). Цвет текстуры дыма.
     color: 0xffffff,
     // Intensity (было intensitySlider 0..1). Максимальная плотность частиц.
-    intensity: 0.07,
+    intensity: 0.05,
     // Text Depth (было depthSlider) — в примере двигал слой текста, у нас
     // группа без текста; оставлено как позиция слоя по Z.
     groupDepth: -200,
@@ -92,7 +92,7 @@
       const whiteCtx = whiteCanvas.getContext('2d');
       whiteCtx.drawImage(image, 0, 0);
       whiteCtx.globalCompositeOperation = 'source-in';
-      whiteCtx.fillStyle = '#bdbdbd';
+      whiteCtx.fillStyle = '#ffffff';
       whiteCtx.fillRect(0, 0, whiteCanvas.width, whiteCanvas.height);
 
       const whiteTexture = new THREE.CanvasTexture(whiteCanvas);
@@ -120,11 +120,11 @@
     window.addEventListener('resize', sizeRenderer, false);
   }
 
-  // ПЕРЕНЕСЕНО БЕЗ ПРАВОК из исходника.
+  // Адаптировано: туман опускается сверху на траву (в исходнике поднимался).
   function resetParticle(p, isInitial) {
     p.position.set(
       Math.random() * 1600 - 800,
-      isInitial ? (Math.random() * 1200 - 600) : -800,
+      isInitial ? (Math.random() * 1200 - 600) : 1000,
       Math.random() * 500
     );
     p.rotation.z = Math.random() * Math.PI * 2;
@@ -133,11 +133,10 @@
     p.material.opacity = 0;
   }
 
-  // ПЕРЕНЕСЕНО БЕЗ ПРАВОК из исходника.
   function animateParticle(p) {
     const duration = 30 + Math.random() * 15;
     gsap.to(p.position, {
-      y: 1000,
+      y: -800,
       x: p.position.x + (Math.random() * 200 - 100),
       duration: duration,
       ease: 'none',
@@ -160,8 +159,11 @@
         p.material.opacity = p.userData.lifeProgress.val * intensityObj.value;
       },
     });
-    tl.to(p.userData.lifeProgress, { val: 1, duration: duration * 0.4, ease: 'sine.inOut' })
-      .to(p.userData.lifeProgress, { val: 0, duration: duration * 0.6, ease: 'sine.in' });
+    // Держим плотность дольше, чтобы туман был виден у травы, а не только
+    // в середине пути.
+    tl.to(p.userData.lifeProgress, { val: 1, duration: duration * 0.5, ease: 'sine.inOut' })
+      .to(p.userData.lifeProgress, { val: 1, duration: duration * 0.3, ease: 'none' })
+      .to(p.userData.lifeProgress, { val: 0, duration: duration * 0.2, ease: 'sine.in' });
   }
 
   function animate() {

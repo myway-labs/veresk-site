@@ -108,7 +108,7 @@
     extend: {
       enabled: true,
       targetSelector: '#catalog',
-      desktopOnly: true,
+      desktopOnly: false,
       fadePx: 180,
     },
 
@@ -375,8 +375,20 @@
   }
 
   function resetRainParticle(particle, isInitial) {
+    // На удлинённом полотне камера становится «уже», и фиксированный
+    // разброс ±800 выносит большую часть частиц за кадр. Считаем ширину
+    // видимой области и распределяем пар по ней (с запасом 10%).
+    const isExtended = container.classList.contains('is-extended');
+    const halfWidth = isExtended
+      ? 2 *
+        Math.tan(THREE.MathUtils.degToRad(FOG_CONFIG.fov / 2)) *
+        FOG_CONFIG.cameraZ *
+        camera.aspect *
+        0.55
+      : 800;
+
     particle.position.set(
-      Math.random() * 1600 - 800,
+      Math.random() * halfWidth * 2 - halfWidth,
       isInitial ? Math.random() * 1200 - 600 : 1000,
       Math.random() * 500
     );
@@ -621,7 +633,7 @@
     attributeFilter: ['class'],
   });
 
-  // Рендерим только когда hero-блок в кадре — не тратим GPU впустую.
+  // Рендерим только когда полотно тумана в кадре — не тратим GPU впустую.
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(
       (entries) => {

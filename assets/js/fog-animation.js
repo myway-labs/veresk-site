@@ -47,14 +47,14 @@
       dark: {
         enabled: true,
         color: 0xffffff,
-        intensity: 0.05,
+        intensity: 0.02,
       },
     },
 
     // Эмиттер из сопла (фото hero-violet.webp). Координаты взяты из фото
     // 1325 × 1825 в нативных пикселях изображения.
     emitter: {
-      enabled: false, // false — вернуться к исходному режиму «сверху вниз»
+      enabled: true, // false — вернуться к исходному режиму «сверху вниз»
       image: {
         width: 1325,
         height: 1825,
@@ -67,7 +67,7 @@
       // Разброс направлений струи, градусы (в обе стороны).
       spreadDeg: 1,
       // Смещение точки старта, чтобы пар не рождался строго за фото (было 6).
-      spawnOffsetPx: 100,
+      spawnOffsetPx: 30,
       // Дальность выброса и последующего оседания, мировые единицы.
       ejectDistanceMin: 220,
       ejectDistanceMax: 360,
@@ -75,8 +75,8 @@
       settleDriftMax: 700,
       settleDrop: 900,
       // Размер старта/рост частицы.
-      scaleStart: 0.18,
-      scaleEnd: 4,
+      scaleStart: 0.08,
+      scaleEnd: 3,
       // Время жизни цикла частицы.
       durationMin: 14,
       durationMax: 22,

@@ -57,13 +57,14 @@
         </div>
     </header>
 
+    <!-- Фоновый слой тумана: вне hero, чтобы не наследовать его max-width
+         и overflow-x. Верх и высоту задаёт fog-animation.js -->
+    <div class="fog-field-container">
+        <canvas id="fogFieldCanvas"></canvas>
+    </div>
+
     <!-- СТРУКТУРНАЯ СЕТКА ГЛАВНОГО ЭКРАНА С СКВОЗНОЙ ЛИНИЕЙ -->
     <main class="hero-section" id="hero">
-        <!-- Фоновый слой тумана (WebGL, three.js — логика в fog-animation.js) -->
-        <div class="fog-field-container">
-            <canvas id="fogFieldCanvas"></canvas>
-        </div>
-
         <!-- Сквозной разделитель по сетке (58.33% / 41.66%) -->
         <div class="global-vertical-line"></div>
 

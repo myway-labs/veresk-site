@@ -4,8 +4,9 @@
 // Взято из внешнего CodePen-примера и адаптировано под статику проекта:
 //   - three.js и gsap подключены ЛОКАЛЬНО (assets/vendor-*), без CDN;
 //   - текстура дыма лежит локально, путь задаётся в FOG_CONFIG;
-//   - рендерер посажен в собственный контейнер (.fog-field-container), а не
-//     в document.body во весь экран;
+//   - рендерер посажен в отдельный контейнер (.fog-field-container) на всю
+//     ширину вьюпорта; контейнер лежит вне hero, чтобы его не резали
+//     max-width и overflow-x секции;
 //   - декоративный текст «THE FOG» и слайдеры из примера убраны;
 //   - все регулировки собраны в объект FOG_CONFIG.
 //
@@ -23,6 +24,7 @@
 
 (function () {
   const container = document.querySelector('.fog-field-container');
+  const heroSection = document.getElementById('hero');
   let canvas = document.getElementById('fogFieldCanvas');
 
   if (!container || !canvas || typeof THREE === 'undefined' || typeof gsap === 'undefined') {
@@ -54,7 +56,7 @@
     // Эмиттер из сопла (фото hero-violet.webp). Координаты взяты из фото
     // 1325 × 1825 в нативных пикселях изображения.
     emitter: {
-      enabled: false, // false — вернуться к исходному режиму «сверху вниз»
+      enabled: true, // false — вернуться к исходному режиму «сверху вниз»
       image: {
         width: 1325,
         height: 1825,
@@ -171,26 +173,28 @@
     camera.updateProjectionMatrix();
   }
 
-  // Продлевает полотно тумана до низа целевого блока. Высота задаётся в px,
-  // потому что она зависит от текущей высоты контента и брейкпоинта.
+  // Ставит полотно от верха hero и продлевает до низа целевого блока.
+  // Контейнер живёт вне hero: ширина — весь вьюпорт, а верх/высота задаются
+  // в координатах документа (иначе hero ограничивал бы его своей шириной).
   function updateFogBounds() {
+    if (!heroSection) return;
+
     const extend = FOG_CONFIG.extend;
     const shouldExtend = extend.enabled && (!extend.desktopOnly || DESKTOP_MQ.matches);
     const target = shouldExtend ? document.querySelector(extend.targetSelector) : null;
+    const heroRect = heroSection.getBoundingClientRect();
+
+    container.style.top = `${Math.round(heroRect.top + window.scrollY)}px`;
 
     if (!target) {
       container.classList.remove('is-extended');
-      container.style.removeProperty('height');
+      container.style.height = `${Math.round(heroRect.height)}px`;
       container.style.removeProperty('--fog-fade');
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-    const heroHeight = container.parentElement
-      ? container.parentElement.getBoundingClientRect().height
-      : containerRect.height;
-    const height = Math.max(heroHeight, targetRect.bottom - containerRect.top);
+    const height = Math.max(heroRect.height, targetRect.bottom - heroRect.top);
 
     container.style.height = `${Math.round(height)}px`;
     container.style.setProperty('--fog-fade', `${extend.fadePx}px`);
@@ -233,7 +237,7 @@
     const nozzleScreenY = imgRect.top + emitter.image.nozzleY * scale;
 
     // Экранные координаты переводим в NDC ОТНОСИТЕЛЬНО canvas (контейнера
-    // тумана), а не окна: hero уже не занимает всю ширину/высоту вьюпорта.
+    // тумана), а не окна: полотно шире контентной колонки hero.
     const xNdc = ((nozzleScreenX - containerRect.left) / containerRect.width) * 2 - 1;
     const yNdc = -((nozzleScreenY - containerRect.top) / containerRect.height) * 2 + 1;
 

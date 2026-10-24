@@ -14,6 +14,11 @@
 // инлайн-скрипт в index.html). Смена темы применяется на лету: цвет и
 // интенсивность обновляются без перезапуска, а при enabled: false сцена
 // полностью освобождает GPU-ресурсы.
+//
+// Два режима движения:
+//   - emitter.enabled: true  — пар вылетает из сопла на фото и оседает вниз;
+//   - emitter.enabled: false — исходный вариант: пар опускается сверху.
+// Режим из сопла включён только на десктопе; на мобильных остаётся исходный.
 // ============================================================================
 
 (function () {
@@ -21,10 +26,13 @@
   let canvas = document.getElementById('fogFieldCanvas');
 
   if (!container || !canvas || typeof THREE === 'undefined' || typeof gsap === 'undefined') {
+    console.warn('[fog] Не инициализировано: отсутствуют container/canvas/THREE/gsap');
     return;
   }
 
   const DARK_THEME_CLASS = 'dark-theme';
+  // 769px — граница мобильной раскладки из style.css
+  const DESKTOP_MQ = window.matchMedia('(min-width: 769px)');
   const reduceMotionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   // ==== РЕГУЛИРОВКИ ====
@@ -41,6 +49,43 @@
         color: 0xffffff,
         intensity: 0.05,
       },
+    },
+
+    // Эмиттер из сопла (фото hero-violet.webp). Координаты взяты из фото
+    // 1325 × 1825 в нативных пикселях изображения.
+    emitter: {
+      enabled: false, // false — вернуться к исходному режиму «сверху вниз»
+      image: {
+        width: 1325,
+        height: 1825,
+        // Координаты сопла в координатах исходного фото (35х625).
+        nozzleX: 35,
+        nozzleY: 625,
+      },
+      // Направление выброса: 10° влево-вверх от горизонтали.
+      angleFromHorizontalDeg: 10,
+      // Разброс направлений струи, градусы (в обе стороны).
+      spreadDeg: 1,
+      // Смещение точки старта, чтобы пар не рождался строго за фото (было 6).
+      spawnOffsetPx: 100,
+      // Дальность выброса и последующего оседания, мировые единицы.
+      ejectDistanceMin: 220,
+      ejectDistanceMax: 360,
+      settleDriftMin: 420,
+      settleDriftMax: 700,
+      settleDrop: 900,
+      // Размер старта/рост частицы.
+      scaleStart: 0.18,
+      scaleEnd: 4,
+      // Время жизни цикла частицы.
+      durationMin: 14,
+      durationMax: 22,
+      // Количество частиц в режиме эмиттера (в режиме «сверху» — 60).
+      particleCount: 90,
+      // Отклонение старта по Z для глубины.
+      zSpread: 200,
+      // Включать эмиттер только на десктопе (соответствует вёрстке фото).
+      desktopOnly: true,
     },
 
     // Общие константы сцены.
@@ -68,13 +113,31 @@
   let smokeTexture = null;
   let smokeParticles = [];
   let activeSettings = null;
+  const emitterOrigin = new THREE.Vector3();
+  let emitterReady = false;
   let initialized = false;
   let loadToken = 0;
   let running = false;
   let visible = true;
 
+  function randomBetween(min, max) {
+    return min + Math.random() * (max - min);
+  }
+
   function getThemeName() {
     return document.body.classList.contains(DARK_THEME_CLASS) ? 'dark' : 'light';
+  }
+
+  function isEmitterUsable() {
+    if (!FOG_CONFIG.emitter.enabled) return false;
+    if (FOG_CONFIG.emitter.desktopOnly && !DESKTOP_MQ.matches) return false;
+    if (!document.querySelector('.inline-team-img')) return false;
+    if (!document.querySelector('.image-container-block')) return false;
+    return true;
+  }
+
+  function isEmitterActive() {
+    return isEmitterUsable() && emitterReady;
   }
 
   function getThemeSettings() {
@@ -94,6 +157,65 @@
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+  }
+
+  // Пересчитывает мировые координаты сопла из координат фото. Возвращает
+  // false, если разметка/камера ещё не готовы (тогда используется rain-режим).
+  function updateEmitterOrigin() {
+    emitterReady = false;
+
+    const imageEl = document.querySelector('.inline-team-img');
+    const emitter = FOG_CONFIG.emitter;
+
+    if (!isEmitterUsable() || !imageEl || !camera) return false;
+
+    const containerRect = container.getBoundingClientRect();
+    const imgRect = imageEl.getBoundingClientRect();
+
+    if (
+      containerRect.width === 0 ||
+      containerRect.height === 0 ||
+      imgRect.width === 0 ||
+      imgRect.height === 0
+    ) {
+      return false;
+    }
+
+    // Фото масштабируется background-size: 100% auto по ширине контейнера,
+    // позиция background-position: right top. Переводим координаты фото
+    // в координаты экрана относительно изображения.
+    const scale = imgRect.width / emitter.image.width;
+    const nozzleScreenX = imgRect.left + emitter.image.nozzleX * scale;
+    const nozzleScreenY = imgRect.top + emitter.image.nozzleY * scale;
+
+    // Экранные координаты переводим в NDC ОТНОСИТЕЛЬНО canvas (контейнера
+    // тумана), а не окна: hero уже не занимает всю ширину/высоту вьюпорта.
+    const xNdc = ((nozzleScreenX - containerRect.left) / containerRect.width) * 2 - 1;
+    const yNdc = -((nozzleScreenY - containerRect.top) / containerRect.height) * 2 + 1;
+
+    // Проекция на плоскость z = 0 (там же, где расположены частицы).
+    camera.updateMatrixWorld();
+    const vector = new THREE.Vector3(xNdc, yNdc, 0.5).unproject(camera);
+    const dir = vector.sub(camera.position).normalize();
+    const distance = -camera.position.z / dir.z;
+
+    if (!Number.isFinite(distance) || distance <= 0) return false;
+
+    const angleRad = Math.PI - THREE.MathUtils.degToRad(emitter.angleFromHorizontalDeg);
+    const offsetDir = new THREE.Vector3(Math.cos(angleRad), Math.sin(angleRad), 0).normalize();
+    const worldPos = camera.position
+      .clone()
+      .add(dir.multiplyScalar(distance))
+      .add(offsetDir.multiplyScalar(emitter.spawnOffsetPx));
+
+    emitterOrigin.copy(worldPos);
+    emitterOrigin.z = 0;
+    emitterReady = true;
+    return true;
+  }
+
+  function getParticleCount() {
+    return isEmitterUsable() ? FOG_CONFIG.emitter.particleCount : FOG_CONFIG.particleCount;
   }
 
   function init() {
@@ -119,6 +241,7 @@
     scene.add(fogGroup);
 
     sizeRenderer();
+    updateEmitterOrigin();
 
     smokeGeometry = new THREE.PlaneGeometry(FOG_CONFIG.planeSize, FOG_CONFIG.planeSize);
 
@@ -169,13 +292,17 @@
       blending: THREE.NormalBlending,
     });
 
-    for (let index = 0; index < FOG_CONFIG.particleCount; index += 1) {
+    updateEmitterOrigin();
+
+    const count = getParticleCount();
+    for (let index = 0; index < count; index += 1) {
       const particle = new THREE.Mesh(smokeGeometry, material.clone());
       particle.userData.lifeProgress = { val: 0 };
+      particle.userData.timeline = null;
       resetParticle(particle, true);
       fogGroup.add(particle);
       smokeParticles.push(particle);
-      animateParticle(particle);
+      animateParticle(particle, true);
     }
 
     material.dispose();
@@ -194,8 +321,17 @@
     });
   }
 
-  // Адаптировано: туман опускается сверху на траву (в исходнике поднимался).
+  // Точка старта и начальный масштаб зависят от выбранного режима.
   function resetParticle(particle, isInitial) {
+    if (isEmitterUsable() && updateEmitterOrigin()) {
+      resetNozzleParticle(particle);
+      return;
+    }
+
+    resetRainParticle(particle, isInitial);
+  }
+
+  function resetRainParticle(particle, isInitial) {
     particle.position.set(
       Math.random() * 1600 - 800,
       isInitial ? Math.random() * 1200 - 600 : 1000,
@@ -207,12 +343,47 @@
     particle.material.opacity = 0;
   }
 
-  function animateParticle(particle) {
+  function resetNozzleParticle(particle) {
+    const emitter = FOG_CONFIG.emitter;
+    const angle =
+      Math.PI -
+      THREE.MathUtils.degToRad(emitter.angleFromHorizontalDeg) +
+      THREE.MathUtils.degToRad(randomBetween(-emitter.spreadDeg, emitter.spreadDeg));
+    const offset = emitter.spawnOffsetPx * randomBetween(0.5, 1);
+    const startScale = emitter.scaleStart * randomBetween(0.8, 1.2);
+
+    particle.position.set(
+      emitterOrigin.x + Math.cos(angle) * offset,
+      emitterOrigin.y + Math.sin(angle) * offset,
+      -FOG_CONFIG.groupDepth + randomBetween(-emitter.zSpread / 2, emitter.zSpread / 2)
+    );
+    particle.rotation.z = Math.random() * Math.PI * 2;
+    particle.scale.set(startScale, startScale, 1);
+    particle.userData.lifeProgress.val = 0;
+    particle.material.opacity = 0;
+  }
+
+  function animateParticle(particle, isInitial) {
+    if (isEmitterActive()) {
+      animateNozzleParticle(particle, isInitial);
+      return;
+    }
+
+    animateRainParticle(particle);
+  }
+
+  // Исходный режим: туман опускается сверху на траву.
+  function animateRainParticle(particle) {
     const duration = 30 + Math.random() * 15;
 
-    // Частица переиспользуется: старый бесконечный твин вращения нужно снять,
-    // иначе на каждую жизнь накапливается ещё один конкурирующий твин.
+    gsap.killTweensOf(particle.position);
     gsap.killTweensOf(particle.rotation);
+    gsap.killTweensOf(particle.scale);
+    gsap.killTweensOf(particle.userData.lifeProgress);
+    if (particle.userData.timeline) {
+      particle.userData.timeline.kill();
+      particle.userData.timeline = null;
+    }
 
     gsap.to(particle.position, {
       y: -800,
@@ -221,7 +392,7 @@
       ease: 'none',
       onComplete: () => {
         resetParticle(particle, false);
-        animateParticle(particle);
+        animateParticle(particle, false);
       },
     });
     gsap.to(particle.rotation, {
@@ -233,8 +404,6 @@
     });
     gsap.to(particle.scale, { x: 4, y: 4, duration, ease: 'power1.out' });
 
-    // Нарастание → плато → затухание. Плотность держим дольше, чтобы туман
-    // был виден у травы, а не только в середине пути.
     const timeline = gsap.timeline();
     particle.userData.timeline = timeline;
     timeline
@@ -243,10 +412,77 @@
       .to(particle.userData.lifeProgress, { val: 0, duration: duration * 0.2, ease: 'sine.in' });
   }
 
+  // Режим сопла: короткий выброс влево-вверх, затем плавное оседание.
+  function animateNozzleParticle(particle, isInitial) {
+    const emitter = FOG_CONFIG.emitter;
+    const duration = randomBetween(emitter.durationMin, emitter.durationMax);
+    const angle =
+      Math.PI -
+      THREE.MathUtils.degToRad(emitter.angleFromHorizontalDeg) +
+      THREE.MathUtils.degToRad(randomBetween(-emitter.spreadDeg, emitter.spreadDeg));
+
+    const ejectDistance = randomBetween(emitter.ejectDistanceMin, emitter.ejectDistanceMax);
+    const apexX = particle.position.x + Math.cos(angle) * ejectDistance;
+    const apexY = particle.position.y + Math.sin(angle) * ejectDistance;
+    const endX = apexX - randomBetween(emitter.settleDriftMin, emitter.settleDriftMax);
+    const endY = emitterOrigin.y - emitter.settleDrop;
+
+    gsap.killTweensOf(particle.position);
+    gsap.killTweensOf(particle.rotation);
+    gsap.killTweensOf(particle.scale);
+    gsap.killTweensOf(particle.userData.lifeProgress);
+    if (particle.userData.timeline) {
+      particle.userData.timeline.kill();
+      particle.userData.timeline = null;
+    }
+
+    const ejectTime = duration * 0.32;
+    const settleTime = duration - ejectTime;
+    const timeline = gsap.timeline({
+      onComplete: () => {
+        resetParticle(particle, false);
+        animateParticle(particle, false);
+      },
+    });
+    particle.userData.timeline = timeline;
+
+    timeline
+      // Выброс: обе оси с одинаковым easing — струя идёт по прямой.
+      .to(particle.position, { x: apexX, duration: ejectTime, ease: 'power2.out' }, 0)
+      .to(particle.position, { y: apexY, duration: ejectTime, ease: 'power2.out' }, 0)
+      // Оседание: горизонталь замедляется, вертикаль ускоряется вниз.
+      .to(particle.position, { x: endX, duration: settleTime, ease: 'sine.inOut' }, ejectTime)
+      .to(particle.position, { y: endY, duration: settleTime, ease: 'power2.in' }, ejectTime)
+      .to(
+        particle.rotation,
+        { z: particle.rotation.z + randomBetween(-0.5, 0.5), duration, ease: 'none' },
+        0
+      )
+      .to(
+        particle.scale,
+        { x: emitter.scaleEnd, y: emitter.scaleEnd, duration, ease: 'power1.out' },
+        0
+      )
+      .to(particle.userData.lifeProgress, { val: 1, duration: duration * 0.3, ease: 'sine.out' }, 0)
+      .to(
+        particle.userData.lifeProgress,
+        { val: 1, duration: duration * 0.4, ease: 'none' },
+        duration * 0.3
+      )
+      .to(
+        particle.userData.lifeProgress,
+        { val: 0, duration: duration * 0.3, ease: 'sine.in' },
+        duration * 0.7
+      );
+
+    // Первый цикл начинаем с разной фазы — струя непрерывная, без залпа.
+    if (isInitial) timeline.progress(randomBetween(0, 0.9), true);
+  }
+
   function animate() {
     if (!running) return;
     requestAnimationFrame(animate);
-    if (!visible || document.hidden || !renderer) return;
+    if (!visible || document.hidden || !renderer || !camera) return;
 
     const intensity = activeSettings ? activeSettings.intensity : 0;
     smokeParticles.forEach((particle) => {
@@ -257,6 +493,7 @@
 
   function start() {
     if (running || !initialized || !isFogAllowed(getThemeSettings())) return;
+    updateEmitterOrigin();
     running = true;
     animate();
   }
@@ -307,6 +544,7 @@
     scene = null;
     camera = null;
     activeSettings = null;
+    emitterReady = false;
     initialized = false;
   }
 
@@ -325,6 +563,7 @@
     }
 
     applyTheme(settings);
+    updateEmitterOrigin();
     start();
   }
 
@@ -339,21 +578,50 @@
     new IntersectionObserver(
       (entries) => {
         visible = entries[0].isIntersecting;
-        if (visible) start();
-        else stop();
+        if (visible) {
+          updateEmitterOrigin();
+          start();
+        } else {
+          stop();
+        }
       },
       { threshold: 0 }
     ).observe(container);
   }
 
-  window.addEventListener('resize', sizeRenderer, false);
+  let scrollRaf = null;
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        updateEmitterOrigin();
+      });
+    },
+    { passive: true }
+  );
 
+  window.addEventListener(
+    'resize',
+    () => {
+      sizeRenderer();
+      updateEmitterOrigin();
+    },
+    false
+  );
+
+  DESKTOP_MQ.addEventListener('change', sync);
   reduceMotionMQ.addEventListener('change', sync);
 
   if (document.hidden) stop();
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop();
-    else start();
+    if (document.hidden) {
+      stop();
+    } else {
+      updateEmitterOrigin();
+      start();
+    }
   });
 
   sync();

@@ -47,14 +47,14 @@
       dark: {
         enabled: true,
         color: 0xffffff,
-        intensity: 0.02,
+        intensity: 0.01,
       },
     },
 
     // Эмиттер из сопла (фото hero-violet.webp). Координаты взяты из фото
     // 1325 × 1825 в нативных пикселях изображения.
     emitter: {
-      enabled: true, // false — вернуться к исходному режиму «сверху вниз»
+      enabled: false, // false — вернуться к исходному режиму «сверху вниз»
       image: {
         width: 1325,
         height: 1825,
@@ -73,7 +73,10 @@
       ejectDistanceMax: 360,
       settleDriftMin: 420,
       settleDriftMax: 700,
-      settleDrop: 900,
+      // Точка завершения оседания как доля высоты полотна: 0.92 — почти
+      // у нижней кромки, где маска уже плавно гасит туман. Доля, а не
+      // мировые единицы, чтобы траектория не зависела от высоты блока.
+      settleEndFraction: 0.92,
       // Размер старта/рост частицы.
       scaleStart: 0.08,
       scaleEnd: 3,
@@ -99,6 +102,15 @@
     // Текстура дыма. Используется только её альфа-канал: RGB при загрузке
     // перекрашивается в белый, а итоговый цвет задаётся в themes[].color.
     texturePath: 'assets/img/fog/Smoke-Element.png',
+
+    // Полотно тумана продолжается ниже hero — до низа указанного блока.
+    // Последние fadePx растворяются маской, а не режутся по границе.
+    extend: {
+      enabled: true,
+      targetSelector: '#catalog',
+      desktopOnly: true,
+      fadePx: 180,
+    },
 
     // Уважать системную настройку «уменьшить движение»: при true туман
     // полностью отключается, если пользователь включил reduced motion.
@@ -157,6 +169,38 @@
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+  }
+
+  // Продлевает полотно тумана до низа целевого блока. Высота задаётся в px,
+  // потому что она зависит от текущей высоты контента и брейкпоинта.
+  function updateFogBounds() {
+    const extend = FOG_CONFIG.extend;
+    const shouldExtend = extend.enabled && (!extend.desktopOnly || DESKTOP_MQ.matches);
+    const target = shouldExtend ? document.querySelector(extend.targetSelector) : null;
+
+    if (!target) {
+      container.classList.remove('is-extended');
+      container.style.removeProperty('height');
+      container.style.removeProperty('--fog-fade');
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const heroHeight = container.parentElement
+      ? container.parentElement.getBoundingClientRect().height
+      : containerRect.height;
+    const height = Math.max(heroHeight, targetRect.bottom - containerRect.top);
+
+    container.style.height = `${Math.round(height)}px`;
+    container.style.setProperty('--fog-fade', `${extend.fadePx}px`);
+    container.classList.add('is-extended');
+  }
+
+  function layoutFog() {
+    updateFogBounds();
+    sizeRenderer();
+    updateEmitterOrigin();
   }
 
   // Пересчитывает мировые координаты сопла из координат фото. Возвращает
@@ -240,8 +284,7 @@
     fogGroup.position.z = FOG_CONFIG.groupDepth;
     scene.add(fogGroup);
 
-    sizeRenderer();
-    updateEmitterOrigin();
+    layoutFog();
 
     smokeGeometry = new THREE.PlaneGeometry(FOG_CONFIG.planeSize, FOG_CONFIG.planeSize);
 
@@ -425,7 +468,12 @@
     const apexX = particle.position.x + Math.cos(angle) * ejectDistance;
     const apexY = particle.position.y + Math.sin(angle) * ejectDistance;
     const endX = apexX - randomBetween(emitter.settleDriftMin, emitter.settleDriftMax);
-    const endY = emitterOrigin.y - emitter.settleDrop;
+
+    // Конец оседания привязан к доле высоты полотна, а не к мировым
+    // единицам: при удлинении полотна в каталог туман доходит до зоны маски.
+    const worldHeight =
+      2 * Math.tan(THREE.MathUtils.degToRad(FOG_CONFIG.fov / 2)) * camera.position.z;
+    const endY = (0.5 - emitter.settleEndFraction) * worldHeight;
 
     gsap.killTweensOf(particle.position);
     gsap.killTweensOf(particle.rotation);
@@ -493,7 +541,7 @@
 
   function start() {
     if (running || !initialized || !isFogAllowed(getThemeSettings())) return;
-    updateEmitterOrigin();
+    layoutFog();
     running = true;
     animate();
   }
@@ -563,7 +611,7 @@
     }
 
     applyTheme(settings);
-    updateEmitterOrigin();
+    layoutFog();
     start();
   }
 
@@ -602,14 +650,14 @@
     { passive: true }
   );
 
-  window.addEventListener(
-    'resize',
-    () => {
-      sizeRenderer();
-      updateEmitterOrigin();
-    },
-    false
-  );
+  window.addEventListener('resize', layoutFog, false);
+  window.addEventListener('load', layoutFog, { once: true });
+
+  // Шрифты меняют высоту каталога после первой отрисовки — пересчитываем
+  // границу полотна, чтобы маска не оказалась выше/ниже нужного места.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(layoutFog);
+  }
 
   DESKTOP_MQ.addEventListener('change', sync);
   reduceMotionMQ.addEventListener('change', sync);
@@ -619,7 +667,6 @@
     if (document.hidden) {
       stop();
     } else {
-      updateEmitterOrigin();
       start();
     }
   });

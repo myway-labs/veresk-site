@@ -9,6 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Пока пусто — запрос не уходит, в консоли печатается ошибка конфигурации.
   const GOOGLE_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz5GKXPTf9vZHka8svYu0FhNNFU2HqyyPngBRczAFgGtKqMq-htH86_nJK-9MxQEMH7/exec';
 
+  // Цель Метрики «заявка реально улетела» — только после успешного ответа Apps Script.
+  const METRIKA_COUNTER_ID = 113806277;
+  const METRIKA_LEAD_GOAL = 'lead';
+
   const TXT = {
     loading: 'Отправка...',
     success: 'Заявка принята! ✓',
@@ -188,6 +192,15 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.style.opacity = '';
   };
 
+  const trackLeadGoal = () => {
+    if (typeof window.ym !== 'function') return;
+    try {
+      window.ym(METRIKA_COUNTER_ID, 'reachGoal', METRIKA_LEAD_GOAL);
+    } catch (err) {
+      console.warn('[metrika] reachGoal не отправлен', err);
+    }
+  };
+
   const runLead = async (btn, data) => {
     if (btn.dataset.busy === '1') return false;
     btn.dataset.busy = '1';
@@ -202,6 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await setButtonText(btn, TXT.loading);
       await sendLead(data);
       sent = true;
+      trackLeadGoal();
 
       await setButtonText(btn, TXT.success);
       btn.classList.remove('is-loading');

@@ -28,11 +28,13 @@
     
         ym(113806277, 'init', {ssr:true, webvisor:true, trackHash:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
     </script>
-    <noscript><div><img src="https://mc.yandex.ru/watch/113806277" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
     <!-- /Yandex.Metrika counter -->
 </head>
 
 <body class="antialiased scroll-smooth">
+
+    <!-- Yandex.Metrika: noscript-пиксель по документации должен быть в body -->
+    <noscript><div><img src="https://mc.yandex.ru/watch/113806277" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 
     <!-- НАВИГАЦИЯ САЙТА (HEADER) -->
     <header class="premium-header">
@@ -157,7 +159,7 @@
 
                         <form class="cta-form" data-lead="hero">
                             <input class="cta-phone-input" type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="+7 (900) 000-00-00" required>
-                            <button class="premium-btn lead-submit" type="submit">Закрепить цену<i class="fa-solid fa-caret-right"></i>
+                            <button class="premium-btn lead-submit js-lead" type="submit">Закрепить цену<i class="fa-solid fa-caret-right"></i>
                             </button>
                         </form>
 
@@ -581,7 +583,7 @@
               </div>
               <div class="lead-row">
                 <input class="lead-phone-input" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 (900) 000-00-00" required>
-                <button type="button" class="card-btn btn-mint lead-submit" data-lead="calc-phys">Отправить заявку <i class="fa-solid fa-caret-right"></i></button>
+                <button type="button" class="card-btn btn-mint lead-submit js-lead" data-lead="calc-phys">Отправить заявку <i class="fa-solid fa-caret-right"></i></button>
               </div>
             </div>
 
@@ -670,7 +672,7 @@
               </div>
               <div class="lead-row">
                 <input class="lead-email-input" type="email" autocomplete="email" placeholder="Ваш email" required>
-                <button type="button" class="card-btn btn-mint lead-submit" data-lead="calc-biz">Получить КП <i class="fa-solid fa-envelope"></i></button>
+                <button type="button" class="card-btn btn-mint lead-submit js-lead" data-lead="calc-biz">Получить КП <i class="fa-solid fa-envelope"></i></button>
               </div>
             </div>
 

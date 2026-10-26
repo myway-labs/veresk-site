@@ -208,12 +208,14 @@ const GRASS_SLIDE_RATIO = 1; // полный сдвиг за высоту экр
 const GRASS_EASE = 0.12;       // плавный возврат (меньше — плавнее)
 const GRASS_EASE_OUT = 0.35;   // быстрая уборка фолбэком, чтобы трава не висла
                                // над контентом при скролле клавиатурой/скроллбаром
+const GRASS_AUTO_REVEAL_MS = 3000; // простой без скролла — выдвинуть траву
 
 // -1 — полоса за левым краем, 0 — на месте, +1 — за правым краем
 let grassShift = 0;   // цель
 let grassShown = 0;   // сглаженное значение для transform
 let fieldVisible = true;
 let lastFieldTransform = '';
+let idleRevealTimer = null;
 
 const reduceMotionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -266,6 +268,18 @@ function revealGrass(side) {
   grassShift = 0;
 }
 
+// Если после скролла пользователь остановился, но так и не выдвинул траву
+// (например, не доскроллил до низа), возвращаем её сами. Движение делает
+// общий rAF-цикл через обычный revealGrass → lerp, без перехвата событий.
+function scheduleIdleReveal() {
+  clearTimeout(idleRevealTimer);
+  idleRevealTimer = setTimeout(() => {
+    idleRevealTimer = null;
+    if (!canMoveGrass() || grassShift === 0) return;
+    revealGrass(Math.sign(grassShift));
+  }, GRASS_AUTO_REVEAL_MS);
+}
+
 // Фолбэк без перехвата (клавиатура, скроллбар, якоря, «наверх»):
 // наверху трава возвращается с той стороны, куда шёл скролл; в середине —
 // убрана; у футера цель не трогаем.
@@ -279,6 +293,7 @@ function syncScrollState() {
   }
 
   setGrassInterception(isAtTop() || isAtBottom());
+  scheduleIdleReveal();
 }
 
 // Применяем сдвиг в общем rAF-цикле и сообщаем, видна ли полоса хоть частично
@@ -321,6 +336,8 @@ function applyGrassGesture(delta) {
   const atTop = isAtTop();
   const atBottom = isAtBottom();
   if (!atTop && !atBottom) return false;
+
+  scheduleIdleReveal();
 
   const down = delta > 0;
   const side = down ? -1 : 1;

@@ -9,9 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Пока пусто — запрос не уходит, в консоли печатается ошибка конфигурации.
   const GOOGLE_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz5GKXPTf9vZHka8svYu0FhNNFU2HqyyPngBRczAFgGtKqMq-htH86_nJK-9MxQEMH7/exec';
 
-  // Цель Метрики «заявка реально улетела» — только после успешного ответа Apps Script.
+  // Цели Метрики: успешная заявка, клик по кнопке и ошибка отправки.
   const METRIKA_COUNTER_ID = 113806277;
-  const METRIKA_LEAD_GOAL = 'lead';
+  const METRIKA_GOALS = {
+    lead: 'lead',
+    click: 'lead_click',
+    fail: 'lead_fail',
+  };
 
   const TXT = {
     loading: 'Отправка...',
@@ -192,12 +196,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.style.opacity = '';
   };
 
-  const trackLeadGoal = () => {
+  const trackGoal = (goal) => {
     if (typeof window.ym !== 'function') return;
     try {
-      window.ym(METRIKA_COUNTER_ID, 'reachGoal', METRIKA_LEAD_GOAL);
+      window.ym(METRIKA_COUNTER_ID, 'reachGoal', goal);
     } catch (err) {
-      console.warn('[metrika] reachGoal не отправлен', err);
+      console.warn('[metrika] reachGoal не отправлен:', goal, err);
     }
   };
 
@@ -215,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await setButtonText(btn, TXT.loading);
       await sendLead(data);
       sent = true;
-      trackLeadGoal();
+      trackGoal(METRIKA_GOALS.lead);
 
       await setButtonText(btn, TXT.success);
       btn.classList.remove('is-loading');
@@ -223,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await sleep(STATE_MS.success);
     } catch (err) {
       console.error(err);
+      if (!sent) trackGoal(METRIKA_GOALS.fail);
       await setButtonText(btn, TXT.error);
       btn.classList.remove('is-loading');
       btn.classList.add('is-error');
@@ -262,6 +267,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!sent) return;
     });
   }
+
+  // Клик по любой лид-кнопке — верхняя ступень воронки.
+  document.querySelectorAll('.js-lead').forEach((btn) => {
+    btn.addEventListener('click', () => trackGoal(METRIKA_GOALS.click));
+  });
 
   const builders = {
     'calc-phys': (btn) => ({ root: btn.closest('.v2-calc'), build: buildCalcPhys, check: (root) => validPhone(root.querySelector('.lead-phone-input')) }),
